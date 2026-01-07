@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-TOKEN = "8347438538:AAFtei8ytovk_s1SoxerKlQASsNHwprs6y8"
+TOKEN = "8347438538:AAEoKoKBQ0WRUnJLzGdWATJVgsAtQRjDLws"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -107,3 +107,4 @@ app.add_handler(CommandHandler("rules", rules))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
+
