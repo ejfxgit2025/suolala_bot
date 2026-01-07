@@ -50,8 +50,8 @@ async def memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stickers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🧧 Stickers\n"
-        "Static: https://t.me/addstickers/Suolala_cto\n"
-        "Extra: https://t.me/addstickers/suolalastickers\n"
+        "Static: https://t.me/addstickers/suolalastickers\n"
+        "Animated: https://t.me/addstickers/Suolala_cto\n"
         "Animated: https://t.me/addstickers/suolalaanimatedstickers"
     )
 
@@ -107,4 +107,5 @@ app.add_handler(CommandHandler("rules", rules))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
+
 
