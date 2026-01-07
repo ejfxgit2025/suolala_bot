@@ -86,7 +86,6 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "2️⃣ No scams\n"
         "3️⃣ No fake links\n"
         "4️⃣ Respect everyone\n"
-        "5️⃣ English only\n\n"
         "Violators will be banned 🚫"
     )
 
@@ -107,5 +106,6 @@ app.add_handler(CommandHandler("rules", rules))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
+
 
 
