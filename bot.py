@@ -14,19 +14,24 @@ from telegram.ext import (
 # ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
 
-# ===== DATABASE (NEW) =====
+# ===== DATABASE =====
 db = sqlite3.connect("msg_stats.db", check_same_thread=False)
 cur = db.cursor()
 cur.execute("""
 CREATE TABLE IF NOT EXISTS stats (
     user_id INTEGER,
     chat_id INTEGER,
-    year_month TEXT,
+    year_week TEXT,
     count INTEGER,
-    PRIMARY KEY (user_id, chat_id, year_month)
+    PRIMARY KEY (user_id, chat_id, year_week)
 )
 """)
 db.commit()
+
+# ===== HELPER: CURRENT WEEK =====
+def current_year_week():
+    year, week, _ = datetime.utcnow().isocalendar()
+    return f"{year}-W{week:02d}"
 
 # ===== BASIC COMMANDS (UNCHANGED) =====
 
@@ -38,8 +43,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/price /chart /buy /memes /stickers\n"
         "/x /community /nft /contract /website /rules\n"
         "/suolala – Random Suolala Girl image\n"
-        "/count – Your monthly chat stats\n"
-        "/top – Top chatters 🏆"
+        "/count – Your weekly chat stats\n"
+        "/top – Weekly top chatters 🏆"
     )
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -110,7 +115,7 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Violators will be banned 🚫"
     )
 
-# ===== SUOLALA IMAGE (UNCHANGED) =====
+# ===== SUOLALA IMAGE =====
 
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -125,67 +130,73 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-# ===== MESSAGE TRACKER (NEW) =====
+# ===== MESSAGE TRACKER (WEEKLY) =====
 
 async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or update.effective_chat.type == "private":
         return
 
-    ym = datetime.utcnow().strftime("%Y-%m")
+    yw = current_year_week()
     uid = update.effective_user.id
     cid = update.effective_chat.id
 
     cur.execute("""
     INSERT INTO stats VALUES (?, ?, ?, 1)
-    ON CONFLICT(user_id, chat_id, year_month)
+    ON CONFLICT(user_id, chat_id, year_week)
     DO UPDATE SET count = count + 1
-    """, (uid, cid, ym))
+    """, (uid, cid, yw))
     db.commit()
 
-# ===== /count (NEW) =====
+# ===== /count (WEEKLY) =====
 
 async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ym = datetime.utcnow().strftime("%Y-%m")
+    yw = current_year_week()
     uid = update.effective_user.id
     cid = update.effective_chat.id
 
     cur.execute(
-        "SELECT count FROM stats WHERE user_id=? AND chat_id=? AND year_month=?",
-        (uid, cid, ym)
+        "SELECT count FROM stats WHERE user_id=? AND chat_id=? AND year_week=?",
+        (uid, cid, yw)
     )
-    c = cur.fetchone()
-    total = c[0] if c else 0
+    row = cur.fetchone()
+    total = row[0] if row else 0
 
     await update.message.reply_text(
-        f"📊 **Your SUOLALA Chat Stats**\n\n"
-        f"🗓 Month: `{ym}`\n"
+        f"📊 **Your Weekly SUOLALA Stats**\n\n"
+        f"🗓 Week: `{yw}`\n"
         f"💬 Messages: **{total}**\n\n"
         f"🐉 Keep grinding, dragon!",
         parse_mode="Markdown"
     )
 
-# ===== /top (NEW) =====
+# ===== /top (WEEKLY + USERNAME) =====
 
 async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ym = datetime.utcnow().strftime("%Y-%m")
+    yw = current_year_week()
     cid = update.effective_chat.id
 
     cur.execute("""
     SELECT user_id, count FROM stats
-    WHERE chat_id=? AND year_month=?
+    WHERE chat_id=? AND year_week=?
     ORDER BY count DESC LIMIT 5
-    """, (cid, ym))
+    """, (cid, yw))
 
     rows = cur.fetchall()
     if not rows:
-        await update.message.reply_text("😴 No chat activity yet.")
+        await update.message.reply_text("😴 No chat activity this week yet.")
         return
 
-    text = "🏆 **Top SUOLALA Chatters** 🏆\n\n"
+    text = "🏆 **Top SUOLALA Chatters (This Week)** 🏆\n\n"
     medals = ["🥇", "🥈", "🥉", "🎖️", "🎖️"]
 
     for i, (uid, count) in enumerate(rows):
-        text += f"{medals[i]} User `{uid}` — **{count}** msgs\n"
+        try:
+            user = await context.bot.get_chat(uid)
+            name = f"@{user.username}" if user.username else user.first_name
+        except:
+            name = "Unknown"
+
+        text += f"{medals[i]} {name} — **{count}** msgs\n"
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
@@ -210,5 +221,5 @@ app.add_handler(CommandHandler("suolala", suolala))
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 
-print("✅ SUOLALA BOT RUNNING...")
+print("✅ SUOLALA BOT RUNNING (WEEKLY MODE)...")
 app.run_polling()
