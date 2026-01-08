@@ -1,24 +1,21 @@
+import os
+import random
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-TOKEN = "8347438538:AAFtNw8FjoEomvjJ4Cb65hYvKE-DGJvm_UE"
+# ===== BOT TOKEN (from Railway Variables) =====
+TOKEN = os.getenv("BOT_TOKEN")
+
+# ===== BASIC COMMANDS =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🚀 Welcome to SUOLALA 🐉\n\n"
-        "The official Solana-based China meme coin 🇨🇳🔥\n\n"
+        "🤖 SUOLALA Bot 🐉\n"
+        "Official Solana China meme coin 🇨🇳🔥\n\n"
         "Commands:\n"
-        "/price – Live price\n"
-        "/chart – Dex chart\n"
-        "/buy – How to buy\n"
-        "/memes – Meme channel\n"
-        "/stickers – Sticker packs\n"
-        "/x – Twitter (X)\n"
-        "/community – Twitter Community\n"
-        "/nft – NFT info\n"
-        "/contract – Contract address\n"
-        "/website – Website\n"
-        "/rules – Group rules"
+        "/price /chart /buy /memes /stickers\n"
+        "/x /community /nft /contract /website /rules\n"
+        "/suolala – Random Suolala Girl image"
     )
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -38,7 +35,7 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛒 How to Buy SUOLALA\n"
         "1️⃣ Create Phantom wallet\n"
         "2️⃣ Buy SOL\n"
-        "3️⃣ Open Jupiter / Dexscreener\n"
+        "3️⃣ Go to Jupiter / Dexscreener\n"
         "4️⃣ Paste contract\n"
         "5️⃣ Swap SOL → SUOLALA\n\n"
         "🔥 Welcome to the dragon side"
@@ -50,8 +47,8 @@ async def memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stickers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🧧 Stickers\n"
-        "Static: https://t.me/addstickers/suolalastickers\n"
-        "Animated: https://t.me/addstickers/Suolala_cto\n"
+        "Static: https://t.me/addstickers/Suolala_cto\n"
+        "Extra: https://t.me/addstickers/suolalastickers\n"
         "Animated: https://t.me/addstickers/suolalaanimatedstickers"
     )
 
@@ -86,8 +83,22 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "2️⃣ No scams\n"
         "3️⃣ No fake links\n"
         "4️⃣ Respect everyone\n"
+        "5️⃣ English only\n\n"
         "Violators will be banned 🚫"
     )
+
+# ===== NEW FEATURE: RANDOM SUOLALA GIRL IMAGE =====
+
+async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    images = os.listdir("girls")
+    image = random.choice(images)
+
+    await update.message.reply_photo(
+        photo=open(f"girls/{image}", "rb"),
+        caption="🐉 Suolala Girl Edition"
+    )
+
+# ===== BOT SETUP =====
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -103,10 +114,7 @@ app.add_handler(CommandHandler("nft", nft))
 app.add_handler(CommandHandler("contract", contract))
 app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
+app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
-
-
-
-
