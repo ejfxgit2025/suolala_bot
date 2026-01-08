@@ -6,15 +6,14 @@ from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
     ContextTypes,
 )
 
 # ===== BOT TOKEN =====
-TOKEN = os.getenv("8347438538:AAFtNw8FjoEomvjJ4Cb65hYvKE-DGJvm_UE")
+TOKEN = os.getenv("BOT_TOKEN")
 
 # =====================================================
-# 🔹 NEW FEATURE: WEEKLY CHAT STATS (ADDED ONLY)
+# 🔹 ADDITION: WEEKLY CHAT STATS (SAFE MODE)
 # =====================================================
 
 db = sqlite3.connect("weekly_stats.db", check_same_thread=False)
@@ -31,49 +30,51 @@ CREATE TABLE IF NOT EXISTS stats (
 db.commit()
 
 def current_year_week():
-    year, week, _ = datetime.utcnow().isocalendar()
-    return f"{year}-W{week:02d}"
+    y, w, _ = datetime.utcnow().isocalendar()
+    return f"{y}-W{w:02d}"
 
-async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# 🔹 message counter (TEXT ONLY = SAFE)
+async def track_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
     if update.message.from_user.is_bot:
         return
     if update.effective_chat.type == "private":
         return
+    if not update.message.text:
+        return
 
     yw = current_year_week()
     uid = update.effective_user.id
     cid = update.effective_chat.id
 
     cur.execute("""
-    INSERT INTO stats (user_id, chat_id, year_week, count)
-    VALUES (?, ?, ?, 1)
+    INSERT INTO stats VALUES (?, ?, ?, 1)
     ON CONFLICT(user_id, chat_id, year_week)
     DO UPDATE SET count = count + 1
     """, (uid, cid, yw))
     db.commit()
 
+# 🔹 /count command
 async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yw = current_year_week()
     uid = update.effective_user.id
     cid = update.effective_chat.id
 
-    cur.execute("""
-    SELECT count FROM stats
-    WHERE user_id=? AND chat_id=? AND year_week=?
-    """, (uid, cid, yw))
-
+    cur.execute(
+        "SELECT count FROM stats WHERE user_id=? AND chat_id=? AND year_week=?",
+        (uid, cid, yw)
+    )
     row = cur.fetchone()
     total = row[0] if row else 0
 
     await update.message.reply_text(
-        f"📊 Your Weekly SUOLALA Stats\n\n"
-        f"🗓 Week: {yw}\n"
-        f"💬 Messages: {total}\n\n"
-        f"🐉 Keep grinding, dragon!"
+        f"📊 Your weekly messages: **{total}**\n"
+        f"🗓 Week: {yw}",
+        parse_mode="Markdown"
     )
 
+# 🔹 /top command
 async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yw = current_year_week()
     cid = update.effective_chat.id
@@ -86,11 +87,11 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     rows = cur.fetchall()
     if not rows:
-        await update.message.reply_text("😴 No chat activity this week yet.")
+        await update.message.reply_text("😴 No messages counted this week.")
         return
 
     medals = ["🥇", "🥈", "🥉", "🎖️", "🎖️"]
-    text = "🏆 Top SUOLALA Chatters (This Week) 🏆\n\n"
+    text = "🏆 Weekly Top Chatters 🏆\n\n"
 
     for i, (uid, count) in enumerate(rows):
         try:
@@ -99,7 +100,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             name = "Unknown"
 
-        text += f"{medals[i]} {name} — {count} msgs\n"
+        text += f"{medals[i]} {name} — {count}\n"
 
     await update.message.reply_text(text)
 
@@ -207,10 +208,10 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# 🔹 NEW (SAFE)
-app.add_handler(MessageHandler(None, track_messages))
+# 🔹 NEW (SAFE ADDITIONS)
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
+app.add_handler(CommandHandler("text", track_text))  # <-- text hook
 
 # 🔹 ORIGINAL
 app.add_handler(CommandHandler("start", start))
@@ -227,6 +228,5 @@ app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 
-print("✅ SUOLALA BOT RUNNING (WEEKLY STATS FIXED)")
+print("✅ SUOLALA BOT RUNNING (WEEKLY COUNT SAFE MODE)")
 app.run_polling()
-
