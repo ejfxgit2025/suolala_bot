@@ -110,7 +110,7 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_photo(
             photo=open(image_path, "rb"),
-            caption="💜 We are 索拉拉 | SUOLALA 🔨🐉"
+            caption="💜 We are 索拉拉 | SUOLALA 🔨"
         )
 
     except Exception as e:
@@ -136,6 +136,7 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
+
 
 
 
