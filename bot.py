@@ -11,7 +11,7 @@ from telegram.ext import (
 )
 
 # ===== BOT TOKEN =====
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("8347438538:AAFtNw8FjoEomvjJ4Cb65hYvKE-DGJvm_UE")
 
 # =====================================================
 # 🔹 NEW FEATURE: WEEKLY CHAT STATS (ADDED ONLY)
@@ -229,3 +229,4 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING (WEEKLY STATS FIXED)")
 app.run_polling()
+
