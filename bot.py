@@ -11,11 +11,11 @@ from telegram.ext import (
     filters,
 )
 
-# ===== BOT TOKEN (from Railway Variables) =====
+# ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
 
 # =====================================================
-# 🔹 ADDITION: WEEKLY MESSAGE COUNT (MINIMAL & REQUIRED)
+# 🔹 ADDITION: WEEKLY MESSAGE COUNT (ONLY ADDITION)
 # =====================================================
 
 db = sqlite3.connect("weekly_stats.db", check_same_thread=False)
@@ -48,8 +48,7 @@ async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
 
     cur.execute("""
-    INSERT INTO stats (user_id, chat_id, year_week, count)
-    VALUES (?, ?, ?, 1)
+    INSERT INTO stats VALUES (?, ?, ?, 1)
     ON CONFLICT(user_id, chat_id, year_week)
     DO UPDATE SET count = count + 1
     """, (uid, cid, yw))
@@ -68,7 +67,7 @@ async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = row[0] if row else 0
 
     await update.message.reply_text(
-        f"📊 Your weekly messages: **{total}**\n"
+        f"📊 Weekly messages: **{total}**\n"
         f"🗓 Week: {yw}",
         parse_mode="Markdown"
     )
@@ -85,25 +84,21 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     rows = cur.fetchall()
     if not rows:
-        await update.message.reply_text("😴 No messages counted this week.")
+        await update.message.reply_text("😴 No messages this week.")
         return
 
     medals = ["🥇", "🥈", "🥉", "🎖️", "🎖️"]
     text = "🏆 Weekly Top Chatters 🏆\n\n"
 
     for i, (uid, count) in enumerate(rows):
-        try:
-            user = await context.bot.get_chat(uid)
-            name = f"@{user.username}" if user.username else user.first_name
-        except:
-            name = "Unknown"
-
+        user = await context.bot.get_chat(uid)
+        name = f"@{user.username}" if user.username else user.first_name
         text += f"{medals[i]} {name} — {count}\n"
 
     await update.message.reply_text(text)
 
 # =====================================================
-# 🔹 ORIGINAL BOT CODE (UNCHANGED)
+# 🔹 ORIGINAL BOT (UNCHANGED)
 # =====================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -135,7 +130,7 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛒 How to Buy SUOLALA\n"
         "1️⃣ Create Phantom wallet\n"
         "2️⃣ Buy SOL\n"
-        "3️⃣ Go to Jupiter \n"
+        "3️⃣ Go to Jupiter\n"
         "4️⃣ Paste contract\n"
         "5️⃣ Swap SOL → SUOLALA\n\n"
         "🔥 Welcome to the dragon side"
@@ -187,33 +182,26 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        IMAGE_DIR = os.path.join(os.getcwd(), "girls")
-        images = [
-            img for img in os.listdir(IMAGE_DIR)
-            if img.lower().endswith((".jpg", ".png", ".jpeg"))
-        ]
-        image = random.choice(images)
-
-        await update.message.reply_photo(
-            photo=open(os.path.join(IMAGE_DIR, image), "rb"),
-            caption="💜 We are 索拉拉 | SUOLALA 🔨"
-        )
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+    IMAGE_DIR = os.path.join(os.getcwd(), "girls")
+    images = [i for i in os.listdir(IMAGE_DIR) if i.lower().endswith(("jpg","png","jpeg"))]
+    image = random.choice(images)
+    await update.message.reply_photo(
+        photo=open(os.path.join(IMAGE_DIR, image), "rb"),
+        caption="💜 We are 索拉拉 | SUOLALA 🔨"
+    )
 
 # ===== BOT SETUP =====
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# 🔹 ONE REQUIRED ADDITION (THIS IS WHY IT NOW WORKS)
-app.add_handler(MessageHandler(filters.ALL & ~filters.StatusUpdate.BOT, track_messages))
+# 🔹 ONE REQUIRED ADDITION (MESSAGE LISTENER)
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
 
-# 🔹 NEW COMMANDS
+# 🔹 NEW FEATURES
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 
-# 🔹 ORIGINAL HANDLERS (UNCHANGED)
+# 🔹 ORIGINAL HANDLERS
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("price", price))
 app.add_handler(CommandHandler("chart", chart))
@@ -228,5 +216,5 @@ app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 
-print("✅ SUOLALA BOT RUNNING (COUNT & TOP FIXED)")
+print("✅ SUOLALA BOT RUNNING WITH COUNT & TOP")
 app.run_polling()
