@@ -90,34 +90,31 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===== NEW FEATURE: RANDOM SUOLALA GIRL IMAGE =====
 
+import os
+import random
+from telegram import Update
+from telegram.ext import ContextTypes
+
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global last_image
+    try:
+        BASE_DIR = os.getcwd()
+        IMAGE_DIR = os.path.join(BASE_DIR, "girls")
 
-    folder = "girls"
+        images = [
+            img for img in os.listdir(IMAGE_DIR)
+            if img.lower().endswith((".jpg", ".png", ".jpeg"))
+        ]
 
-    if not os.path.exists(folder):
-        await update.message.reply_text("Image folder not found.")
-        return
+        image = random.choice(images)
+        image_path = os.path.join(IMAGE_DIR, image)
 
-    images = [f for f in os.listdir(folder) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-
-    if not images:
-        await update.message.reply_text("No images available.")
-        return
-
-    image = random.choice(images)
-
-    if last_image and len(images) > 1:
-        while image == last_image:
-            image = random.choice(images)
-
-    last_image = image
-
-    with open(f"{folder}/{image}", "rb") as photo:
         await update.message.reply_photo(
-            photo=photo,
+            photo=open(image_path, "rb"),
             caption="💜 We are 索拉拉 | SUOLALA 🔨🐉"
         )
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
 
 # ===== BOT SETUP =====
 
@@ -139,6 +136,7 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
+
 
 
 
