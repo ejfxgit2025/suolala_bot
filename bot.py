@@ -90,25 +90,35 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===== NEW FEATURE: RANDOM SUOLALA GIRL IMAGE =====
 
-
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global last_image
 
-    images = os.listdir("girls")
+    folder = "girls"
 
-    # Pick random image
+    if not os.path.exists(folder):
+        await update.message.reply_text("Image folder not found.")
+        return
+
+    images = [f for f in os.listdir(folder) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+
+    if not images:
+        await update.message.reply_text("No images available.")
+        return
+
     image = random.choice(images)
 
-    # Prevent same image twice in a row
-    while image == last_image and len(images) > 1:
-        image = random.choice(images)
+    if last_image and len(images) > 1:
+        while image == last_image:
+            image = random.choice(images)
 
     last_image = image
 
-    await update.message.reply_photo(
-        photo=open(f"girls/{image}", "rb"),
-        caption="💜 We are 索拉拉|SUOLALA 🔨"
-    )
+    with open(f"{folder}/{image}", "rb") as photo:
+        await update.message.reply_photo(
+            photo=photo,
+            caption="💜 We are 索拉拉 | SUOLALA 🔨🐉"
+        )
+
 # ===== BOT SETUP =====
 
 app = ApplicationBuilder().token(TOKEN).build()
@@ -129,6 +139,7 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
+
 
 
 
