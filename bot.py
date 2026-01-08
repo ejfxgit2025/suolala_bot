@@ -55,28 +55,36 @@ async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.commit()
 
 
-async def count_cmd(update, context):
+async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    yw = current_year_week()
+    uid = update.effective_user.id
+    cid = update.effective_chat.id
     cur.execute(
         "SELECT count FROM stats WHERE user_id=? AND chat_id=? AND year_week=?",
-        (update.effective_user.id, update.effective_chat.id, current_week())
+        (uid, cid, yw)
     )
     total = cur.fetchone()
     await update.message.reply_text(f"📊 Weekly messages: {total[0] if total else 0}")
     
 
-async def top_cmd(update, context):
+async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    yw = current_year_week()
+    cid = update.effective_chat.id
     cur.execute(
         "SELECT user_id, count FROM stats WHERE chat_id=? AND year_week=? ORDER BY count DESC LIMIT 5",
-        (update.effective_chat.id, current_week())
+        (cid, yw)
     )
     rows = cur.fetchall()
+    medals = ["🥇", "🥈", "🥉", "🏅", "🏅"]
     text = "🏆 Weekly Top Chatters\n\n"
-
     for i, (uid, count) in enumerate(rows):
-        user = await context.bot.get_chat(uid)
-        name = f"@{user.username}" if user.username else user.first_name
-        text += f"{i+1}. {name} — {count}\n"
-
+        try:
+            user = await context.bot.get_chat(uid)
+            name = f"@{user.username}" if user.username else user.first_name
+        except Exception:
+            name = f"User {uid}"
+        medal = medals[i] if i < len(medals) else ""
+        text += f"{medal} {name} — {count}\n"
     await update.message.reply_text(text)
     
 # =====================================================
@@ -200,4 +208,3 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING WITH COUNT & TOP")
 app.run_polling()
-
