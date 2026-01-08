@@ -57,8 +57,12 @@ async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yw = current_year_week()
-    uid = update.effective_user.id
     cid = update.effective_chat.id
+    # Only count if in a group
+    if update.effective_chat.type not in ["group", "supergroup"]:
+        await update.message.reply_text("This command only works in group chats.")
+        return
+    uid = update.effective_user.id
     cur.execute(
         "SELECT count FROM stats WHERE user_id=? AND chat_id=? AND year_week=?",
         (uid, cid, yw)
@@ -70,6 +74,10 @@ async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yw = current_year_week()
     cid = update.effective_chat.id
+    # Only count if in a group
+    if update.effective_chat.type not in ["group", "supergroup"]:
+        await update.message.reply_text("This command only works in group chats.")
+        return
     cur.execute(
         "SELECT user_id, count FROM stats WHERE chat_id=? AND year_week=? ORDER BY count DESC LIMIT 5",
         (cid, yw)
@@ -79,7 +87,8 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "🏆 Weekly Top Chatters\n\n"
     for i, (uid, count) in enumerate(rows):
         try:
-            user = await context.bot.get_chat(uid)
+            member = await context.bot.get_chat_member(cid, uid)
+            user = member.user
             name = f"@{user.username}" if user.username else user.first_name
         except Exception:
             name = f"User {uid}"
