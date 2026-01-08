@@ -8,17 +8,15 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     ContextTypes,
-    filters,
 )
 
-# ===== BOT TOKEN (from Railway Variables) =====
+# ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
 
 # =====================================================
-# 🔽🔽🔽 NEW FEATURE: WEEKLY CHAT STATS (ADDED) 🔽🔽🔽
+# 🔹 NEW FEATURE: WEEKLY CHAT STATS (ADDED ONLY)
 # =====================================================
 
-# ===== DATABASE =====
 db = sqlite3.connect("weekly_stats.db", check_same_thread=False)
 cur = db.cursor()
 cur.execute("""
@@ -36,14 +34,11 @@ def current_year_week():
     year, week, _ = datetime.utcnow().isocalendar()
     return f"{year}-W{week:02d}"
 
-# ===== MESSAGE TRACKER (COUNTS EVERYTHING EXCEPT BOT) =====
 async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
-
     if update.message.from_user.is_bot:
         return
-
     if update.effective_chat.type == "private":
         return
 
@@ -59,7 +54,6 @@ async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """, (uid, cid, yw))
     db.commit()
 
-# ===== /count (WEEKLY) =====
 async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yw = current_year_week()
     uid = update.effective_user.id
@@ -74,14 +68,12 @@ async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = row[0] if row else 0
 
     await update.message.reply_text(
-        f"📊 **Your Weekly SUOLALA Stats**\n\n"
-        f"🗓 Week: `{yw}`\n"
-        f"💬 Messages: **{total}**\n\n"
-        f"🐉 Keep grinding, dragon!",
-        parse_mode="Markdown"
+        f"📊 Your Weekly SUOLALA Stats\n\n"
+        f"🗓 Week: {yw}\n"
+        f"💬 Messages: {total}\n\n"
+        f"🐉 Keep grinding, dragon!"
     )
 
-# ===== /top (WEEKLY, USERNAME) =====
 async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yw = current_year_week()
     cid = update.effective_chat.id
@@ -98,7 +90,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     medals = ["🥇", "🥈", "🥉", "🎖️", "🎖️"]
-    text = "🏆 **Top SUOLALA Chatters (This Week)** 🏆\n\n"
+    text = "🏆 Top SUOLALA Chatters (This Week) 🏆\n\n"
 
     for i, (uid, count) in enumerate(rows):
         try:
@@ -107,15 +99,13 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             name = "Unknown"
 
-        text += f"{medals[i]} {name} — **{count}** msgs\n"
+        text += f"{medals[i]} {name} — {count} msgs\n"
 
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await update.message.reply_text(text)
 
 # =====================================================
-# 🔼🔼🔼 END NEW FEATURE 🔼🔼🔼
+# 🔹 ORIGINAL BOT (UNCHANGED)
 # =====================================================
-
-# ===== BASIC COMMANDS (UNCHANGED) =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -126,7 +116,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/x /community /nft /contract /website /rules\n"
         "/suolala – Random Suolala Girl image\n"
         "/count – Weekly chat count\n"
-        "/top – Weekly top chatters 🏆"
+        "/top – Weekly top chatters"
     )
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -146,7 +136,7 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛒 How to Buy SUOLALA\n"
         "1️⃣ Create Phantom wallet\n"
         "2️⃣ Buy SOL\n"
-        "3️⃣ Go to Jupiter \n"
+        "3️⃣ Go to Jupiter\n"
         "4️⃣ Paste contract\n"
         "5️⃣ Swap SOL → SUOLALA\n\n"
         "🔥 Welcome to the dragon side"
@@ -197,8 +187,6 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Violators will be banned 🚫"
     )
 
-# ===== SUOLALA IMAGE (UNCHANGED) =====
-
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         IMAGE_DIR = os.path.join(os.getcwd(), "girls")
@@ -206,12 +194,10 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
             img for img in os.listdir(IMAGE_DIR)
             if img.lower().endswith((".jpg", ".png", ".jpeg"))
         ]
-
         image = random.choice(images)
-        image_path = os.path.join(IMAGE_DIR, image)
 
         await update.message.reply_photo(
-            photo=open(image_path, "rb"),
+            photo=open(os.path.join(IMAGE_DIR, image), "rb"),
             caption="💜 We are 索拉拉 | SUOLALA 🔨"
         )
     except Exception as e:
@@ -221,12 +207,12 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# 🔹 NEW HANDLERS (ADDED)
-app.add_handler(MessageHandler(filters.ALL, track_messages))
+# 🔹 NEW (SAFE)
+app.add_handler(MessageHandler(None, track_messages))
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 
-# 🔹 EXISTING HANDLERS (UNCHANGED)
+# 🔹 ORIGINAL
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("price", price))
 app.add_handler(CommandHandler("chart", chart))
@@ -241,5 +227,5 @@ app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 
-print("✅ SUOLALA BOT RUNNING (WEEKLY STATS ADDED)...")
+print("✅ SUOLALA BOT RUNNING (WEEKLY STATS FIXED)")
 app.run_polling()
