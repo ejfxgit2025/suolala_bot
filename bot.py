@@ -42,7 +42,8 @@ async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     cur.execute("""
-    INSERT INTO stats VALUES (?, ?, ?, 1)
+    INSERT INTO stats (user_id, chat_id, year_week, count)
+    VALUES (?, ?, ?, 1)
     ON CONFLICT(user_id, chat_id, year_week)
     DO UPDATE SET count = count + 1
     """, (
@@ -62,7 +63,7 @@ async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = row[0] if row else 0
 
     await update.message.reply_text(
-        f"📊 **Weekly Chat Stats**\n\n"
+        f"📊 **Weekly SUOLALA Stats**\n\n"
         f"🗓 Week: `{current_week()}`\n"
         f"💬 Messages: **{total}**",
         parse_mode="Markdown"
@@ -82,7 +83,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     medals = ["🥇", "🥈", "🥉", "🎖️", "🎖️"]
-    text = "🏆 **Top Chatters (This Week)** 🏆\n\n"
+    text = "🏆 **Weekly Top Chatters** 🏆\n\n"
 
     for i, (uid, count) in enumerate(rows):
         try:
@@ -154,8 +155,8 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ================= BOT SETUP =================
 app = ApplicationBuilder().token(TOKEN).build()
 
-# ✅ FIXED HANDLER (THIS SOLVES ALL BUGS)
-app.add_handler(MessageHandler(filters.ALL & ~filters.StatusUpdate.BOT, track_messages))
+# 🔑 SAFE MESSAGE HANDLER (NO CRASH, NO LOOP)
+app.add_handler(MessageHandler(~filters.COMMAND, track_messages))
 
 # New commands
 app.add_handler(CommandHandler("count", count_cmd))
@@ -176,5 +177,5 @@ app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 
-print("✅ SUOLALA BOT RUNNING — ALL BUGS FIXED")
+print("✅ SUOLALA BOT RUNNING — STABLE VERSION")
 app.run_polling()
