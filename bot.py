@@ -96,7 +96,7 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_photo(
         photo=open(f"girls/{image}", "rb"),
-        caption="🐉 Suolala Girl Edition"
+        caption="💜✨ We are 索拉拉|SUOLALA 🔨🐉"
     )
 
 # ===== BOT SETUP =====
@@ -119,4 +119,5 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
+
 
