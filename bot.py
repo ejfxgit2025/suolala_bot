@@ -87,7 +87,8 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for i, (uid, count) in enumerate(rows):
         try:
-            user = await context.bot.get_chat(uid)
+            member = await context.bot.get_chat_member(update.effective_chat.id, uid)
+            user = member.user
             name = f"@{user.username}" if user.username else user.first_name
         except:
             name = "Unknown"
@@ -96,7 +97,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
-# ================= OLD COMMANDS (UNCHANGED) =================
+# ================= COMMANDS (LINKS FIXED) =================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -111,37 +112,78 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("💰 SUOLALA Price")
+    await update.message.reply_text(
+        "💰 **SUOLALA Price**\n"
+        "https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
+    )
 
 async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📈 SUOLALA Chart")
+    await update.message.reply_text(
+        "📈 **SUOLALA Chart**\n"
+        "https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
+    )
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🛒 How to Buy SUOLALA")
+    await update.message.reply_text(
+        "🛒 **How to Buy SUOLALA**\n\n"
+        "1️⃣ Create Phantom Wallet\n"
+        "2️⃣ Buy SOL\n"
+        "3️⃣ Go to Jupiter\n"
+        "4️⃣ Paste Contract Address\n"
+        "5️⃣ Swap SOL → SUOLALA\n\n"
+        "🔗 https://jup.ag"
+    )
 
 async def memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("😂 Memes")
+    await update.message.reply_text(
+        "😂 **SUOLALA Memes**\n"
+        "https://t.me/suolala_memes"
+    )
 
 async def stickers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🧧 Stickers")
+    await update.message.reply_text(
+        "🧧 **SUOLALA Stickers**\n"
+        "Static: https://t.me/addstickers/Suolala_cto\n"
+        "Extra: https://t.me/addstickers/suolalastickers\n"
+        "Animated: https://t.me/addstickers/suolalaanimatedstickers"
+    )
 
 async def x(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🐦 X (Twitter)")
+    await update.message.reply_text(
+        "🐦 **X (Twitter)**\n"
+        "https://x.com/suolalax"
+    )
 
 async def community(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👥 Community")
+    await update.message.reply_text(
+        "👥 **Twitter Community**\n"
+        "https://twitter.com/i/communities/1980324795851186529"
+    )
 
 async def nft(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🖼️ NFTs coming soon")
+    await update.message.reply_text("🖼️ NFTs coming soon 👀")
 
 async def contract(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📜 Contract Address")
+    await update.message.reply_text(
+        "📜 **Contract Address**\n"
+        "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+    )
 
 async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🌐 Website")
+    await update.message.reply_text(
+        "🌐 **Website**\n"
+        "https://trends.fun/token/CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+    )
 
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📌 Group Rules")
+    await update.message.reply_text(
+        "📌 **Group Rules**\n"
+        "1️⃣ No spam\n"
+        "2️⃣ No scams\n"
+        "3️⃣ No fake links\n"
+        "4️⃣ Respect everyone\n"
+        "🚫 Violators will be banned"
+    )
 
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     IMAGE_DIR = os.path.join(os.getcwd(), "girls")
@@ -155,14 +197,9 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ================= BOT SETUP =================
 app = ApplicationBuilder().token(TOKEN).build()
 
-# 🔑 SAFE MESSAGE HANDLER (NO CRASH, NO LOOP)
 app.add_handler(MessageHandler(~filters.COMMAND, track_messages))
-
-# New commands
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
-
-# Old commands
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("price", price))
 app.add_handler(CommandHandler("chart", chart))
