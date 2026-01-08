@@ -54,49 +54,31 @@ async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """, (uid, cid, yw))
     db.commit()
 
-async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    yw = current_year_week()
-    uid = update.effective_user.id
-    cid = update.effective_chat.id
 
+async def count_cmd(update, context):
     cur.execute(
         "SELECT count FROM stats WHERE user_id=? AND chat_id=? AND year_week=?",
-        (uid, cid, yw)
+        (update.effective_user.id, update.effective_chat.id, current_week())
     )
-    row = cur.fetchone()
-    total = row[0] if row else 0
+    total = cur.fetchone()
+    await update.message.reply_text(f"📊 Weekly messages: {total[0] if total else 0}")
+    
 
-    await update.message.reply_text(
-        f"📊 Weekly messages: **{total}**\n"
-        f"🗓 Week: {yw}",
-        parse_mode="Markdown"
+async def top_cmd(update, context):
+    cur.execute(
+        "SELECT user_id, count FROM stats WHERE chat_id=? AND year_week=? ORDER BY count DESC LIMIT 5",
+        (update.effective_chat.id, current_week())
     )
-
-async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    yw = current_year_week()
-    cid = update.effective_chat.id
-
-    cur.execute("""
-    SELECT user_id, count FROM stats
-    WHERE chat_id=? AND year_week=?
-    ORDER BY count DESC LIMIT 5
-    """, (cid, yw))
-
     rows = cur.fetchall()
-    if not rows:
-        await update.message.reply_text("😴 No messages this week.")
-        return
-
-    medals = ["🥇", "🥈", "🥉", "🎖️", "🎖️"]
-    text = "🏆 Weekly Top Chatters 🏆\n\n"
+    text = "🏆 Weekly Top Chatters\n\n"
 
     for i, (uid, count) in enumerate(rows):
         user = await context.bot.get_chat(uid)
         name = f"@{user.username}" if user.username else user.first_name
-        text += f"{medals[i]} {name} — {count}\n"
+        text += f"{i+1}. {name} — {count}\n"
 
     await update.message.reply_text(text)
-
+    
 # =====================================================
 # 🔹 ORIGINAL BOT (UNCHANGED)
 # =====================================================
@@ -218,3 +200,4 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING WITH COUNT & TOP")
 app.run_polling()
+
