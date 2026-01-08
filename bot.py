@@ -35,7 +35,7 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛒 How to Buy SUOLALA\n"
         "1️⃣ Create Phantom wallet\n"
         "2️⃣ Buy SOL\n"
-        "3️⃣ Go to Jupiter / Dexscreener\n"
+        "3️⃣ Go to Jupiter \n"
         "4️⃣ Paste contract\n"
         "5️⃣ Swap SOL → SUOLALA\n\n"
         "🔥 Welcome to the dragon side"
@@ -79,11 +79,12 @@ async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📌 GROUP RULES\n"
+        
         "1️⃣ No spam\n"
         "2️⃣ No scams\n"
         "3️⃣ No fake links\n"
         "4️⃣ Respect everyone\n"
-        "5️⃣ English only\n\n"
+      
         "Violators will be banned 🚫"
     )
 
@@ -118,3 +119,4 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING...")
 app.run_polling()
+
