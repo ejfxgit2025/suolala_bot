@@ -6,14 +6,16 @@ from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
+    MessageHandler,
     ContextTypes,
+    filters,
 )
 
-# ===== BOT TOKEN =====
+# ===== BOT TOKEN (from Railway Variables) =====
 TOKEN = os.getenv("BOT_TOKEN")
 
 # =====================================================
-# 🔹 ADDITION: WEEKLY CHAT STATS (SAFE MODE)
+# 🔹 ADDITION: WEEKLY MESSAGE COUNT (MINIMAL & REQUIRED)
 # =====================================================
 
 db = sqlite3.connect("weekly_stats.db", check_same_thread=False)
@@ -33,15 +35,12 @@ def current_year_week():
     y, w, _ = datetime.utcnow().isocalendar()
     return f"{y}-W{w:02d}"
 
-# 🔹 message counter (TEXT ONLY = SAFE)
-async def track_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
     if update.message.from_user.is_bot:
         return
     if update.effective_chat.type == "private":
-        return
-    if not update.message.text:
         return
 
     yw = current_year_week()
@@ -49,13 +48,13 @@ async def track_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cid = update.effective_chat.id
 
     cur.execute("""
-    INSERT INTO stats VALUES (?, ?, ?, 1)
+    INSERT INTO stats (user_id, chat_id, year_week, count)
+    VALUES (?, ?, ?, 1)
     ON CONFLICT(user_id, chat_id, year_week)
     DO UPDATE SET count = count + 1
     """, (uid, cid, yw))
     db.commit()
 
-# 🔹 /count command
 async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yw = current_year_week()
     uid = update.effective_user.id
@@ -74,7 +73,6 @@ async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-# 🔹 /top command
 async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yw = current_year_week()
     cid = update.effective_chat.id
@@ -105,7 +103,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text)
 
 # =====================================================
-# 🔹 ORIGINAL BOT (UNCHANGED)
+# 🔹 ORIGINAL BOT CODE (UNCHANGED)
 # =====================================================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,7 +135,7 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛒 How to Buy SUOLALA\n"
         "1️⃣ Create Phantom wallet\n"
         "2️⃣ Buy SOL\n"
-        "3️⃣ Go to Jupiter\n"
+        "3️⃣ Go to Jupiter \n"
         "4️⃣ Paste contract\n"
         "5️⃣ Swap SOL → SUOLALA\n\n"
         "🔥 Welcome to the dragon side"
@@ -208,12 +206,14 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# 🔹 NEW (SAFE ADDITIONS)
+# 🔹 ONE REQUIRED ADDITION (THIS IS WHY IT NOW WORKS)
+app.add_handler(MessageHandler(filters.ALL & ~filters.StatusUpdate.BOT, track_messages))
+
+# 🔹 NEW COMMANDS
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
-app.add_handler(CommandHandler("text", track_text))  # <-- text hook
 
-# 🔹 ORIGINAL
+# 🔹 ORIGINAL HANDLERS (UNCHANGED)
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("price", price))
 app.add_handler(CommandHandler("chart", chart))
@@ -228,5 +228,5 @@ app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 
-print("✅ SUOLALA BOT RUNNING (WEEKLY COUNT SAFE MODE)")
+print("✅ SUOLALA BOT RUNNING (COUNT & TOP FIXED)")
 app.run_polling()
