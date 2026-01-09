@@ -4,49 +4,28 @@ from datetime import time
 import pytz
 
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
 
-# ===== CHAT STORAGE FILE =====
-CHAT_FILE = "chats.txt"
+# ===== IN-MEMORY CHAT STORE (SAFE) =====
+KNOWN_CHATS = set()
 
-# ===== SAVE CHAT ID (AUTO) =====
-def save_chat_id(chat_id: int):
-    if not os.path.exists(CHAT_FILE):
-        with open(CHAT_FILE, "w") as f:
-            f.write(str(chat_id) + "\n")
-        return
+def remember_chat(update: Update):
+    if update and update.effective_chat:
+        KNOWN_CHATS.add(update.effective_chat.id)
 
-    with open(CHAT_FILE, "r") as f:
-        chats = f.read().splitlines()
-
-    if str(chat_id) not in chats:
-        with open(CHAT_FILE, "a") as f:
-            f.write(str(chat_id) + "\n")
-
-# ===== LOAD ALL CHATS =====
-def load_chat_ids():
-    if not os.path.exists(CHAT_FILE):
-        return []
-    with open(CHAT_FILE, "r") as f:
-        return [int(x) for x in f.read().splitlines() if x.strip()]
-
-# ===== QR HELPER (UNCHANGED) =====
+# ===== QR HELPER =====
 async def send_qr_if_exists(update, name):
     path = f"qrcodes/{name}.jpg"
     if os.path.exists(path):
         await update.message.reply_photo(photo=open(path, "rb"))
 
-# ===== BASIC COMMANDS (UNCHANGED, JUST SAVE CHAT) =====
+# ===== BASIC COMMANDS =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
         "🤖 SUOLALA Bot 🐉\n"
         "Official Solana China meme coin 🇨🇳🔥\n\n"
@@ -57,7 +36,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
         "💰 SUOLALA Price\n"
         "https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
@@ -65,7 +44,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_qr_if_exists(update, "price")
 
 async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
         "📈 SUOLALA Chart\n"
         "https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
@@ -73,12 +52,12 @@ async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_qr_if_exists(update, "chart")
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
         "🛒 How to Buy SUOLALA\n"
         "1️⃣ Create Phantom wallet\n"
         "2️⃣ Buy SOL\n"
-        "3️⃣ Go to Jupiter \n"
+        "3️⃣ Go to Jupiter\n"
         "4️⃣ Paste contract\n"
         "5️⃣ Swap SOL → SUOLALA\n\n"
         "🔥 Welcome to the dragon side"
@@ -86,12 +65,12 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_qr_if_exists(update, "buy")
 
 async def memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text("😂 Memes\nhttps://t.me/suolala_memes")
     await send_qr_if_exists(update, "memes")
 
 async def stickers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
         "🧧 Stickers\n"
         "Static: https://t.me/addstickers/Suolala_cto\n"
@@ -100,45 +79,53 @@ async def stickers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def x(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text("🐦 X (Twitter)\nhttps://x.com/suolalax")
     await send_qr_if_exists(update, "x")
 
 async def community(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
-        "👥 Twitter Community\nhttps://twitter.com/i/communities/1980324795851186529"
+        "👥 Twitter Community\n"
+        "https://twitter.com/i/communities/1980324795851186529"
     )
     await send_qr_if_exists(update, "community")
 
 async def nft(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text("🖼️ NFTs coming soon 👀")
 
 async def contract(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
-        "📜 Contract Address\nCY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+        "📜 Contract Address\n"
+        "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
     )
     await send_qr_if_exists(update, "contract")
 
 async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
-        "🌐 Website\nhttps://trends.fun/token/CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+        "🌐 Website\n"
+        "https://trends.fun/token/CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
     )
     await send_qr_if_exists(update, "website")
 
 async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     await update.message.reply_text(
         "📌 GROUP RULES\n"
-        "1️⃣ No spam\n2️⃣ No scams\n3️⃣ No fake links\n4️⃣ Respect everyone"
+        "1️⃣ No spam\n"
+        "2️⃣ No scams\n"
+        "3️⃣ No fake links\n"
+        "4️⃣ Respect everyone\n"
+        "Violators will be banned 🚫"
     )
 
-# ===== RANDOM IMAGE (UNCHANGED) =====
+# ===== RANDOM IMAGE =====
+
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_chat_id(update.effective_chat.id)
+    remember_chat(update)
     try:
         IMAGE_DIR = os.path.join(os.getcwd(), "girls")
         images = [i for i in os.listdir(IMAGE_DIR) if i.lower().endswith((".jpg", ".png", ".jpeg"))]
@@ -150,29 +137,21 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-# ===== AUTO GM / GN (BROADCAST TO ALL CHATS) =====
+# ===== AUTO GM / GN (SAFE) =====
 
 CHINA_TZ = pytz.timezone("Asia/Shanghai")
 
 async def send_gm(context):
-    for chat_id in load_chat_ids():
+    for chat_id in list(KNOWN_CHATS):
         try:
-            await context.bot.send_animation(
-                chat_id=chat_id,
-                animation=open("gm.gif", "rb"),
-                caption="🇨🇳 Good Morning ☀️"
-            )
+            await context.bot.send_animation(chat_id=chat_id, animation=open("gm.gif", "rb"))
         except:
             pass
 
 async def send_gn(context):
-    for chat_id in load_chat_ids():
+    for chat_id in list(KNOWN_CHATS):
         try:
-            await context.bot.send_animation(
-                chat_id=chat_id,
-                animation=open("gn.gif", "rb"),
-                caption="🇨🇳 Good Night 🌙"
-            )
+            await context.bot.send_animation(chat_id=chat_id, animation=open("gn.gif", "rb"))
         except:
             pass
 
@@ -180,7 +159,7 @@ async def send_gn(context):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# Schedule China time
+# Schedule jobs (China time)
 app.job_queue.run_daily(send_gm, time=time(hour=9, minute=0, tzinfo=CHINA_TZ))
 app.job_queue.run_daily(send_gn, time=time(hour=23, minute=0, tzinfo=CHINA_TZ))
 
@@ -199,5 +178,5 @@ app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 
-print("✅ SUOLALA BOT RUNNING WITH GLOBAL GM/GN...")
+print("✅ SUOLALA BOT RUNNING WITH SAFE GM/GN")
 app.run_polling()
