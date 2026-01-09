@@ -11,17 +11,16 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# ================== CONFIG ==================
+# ================= CONFIG =================
 
 TOKEN = os.getenv("BOT_TOKEN")
-
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
 KNOWN_CHATS = set()
 LAST_GM_DATE = None
 LAST_GN_DATE = None
 
-# ================== HELPERS ==================
+# ================= HELPERS =================
 
 def remember_chat(update: Update):
     if update and update.effective_chat:
@@ -32,7 +31,7 @@ async def send_qr_if_exists(update, name):
     if os.path.exists(path):
         await update.message.reply_photo(photo=open(path, "rb"))
 
-# ================== COMMANDS ==================
+# ================= COMMANDS =================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
@@ -134,71 +133,68 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
-    try:
-        IMAGE_DIR = "girls"
-        image = random.choice([
-            f for f in os.listdir(IMAGE_DIR)
-            if f.lower().endswith((".jpg", ".png", ".jpeg"))
-        ])
-        await update.message.reply_photo(
-            photo=open(os.path.join(IMAGE_DIR, image), "rb"),
-            caption="💜 We are 索拉拉 | SUOLALA 🔨"
-        )
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
+    IMAGE_DIR = "girls"
+    image = random.choice([
+        f for f in os.listdir(IMAGE_DIR)
+        if f.lower().endswith((".jpg", ".png", ".jpeg"))
+    ])
+    await update.message.reply_photo(
+        photo=open(os.path.join(IMAGE_DIR, image), "rb"),
+        caption="💜 We are 索拉拉 | SUOLALA 🔨"
+    )
 
-# ================== AUTO GM / GN LOOP ==================
+# ================= GM / GN BACKGROUND TASK =================
 
-async def gm_gn_loop(app):
+async def gm_gn_task(application):
     global LAST_GM_DATE, LAST_GN_DATE
 
     while True:
         now = datetime.now(CHINA_TZ)
         today = now.date()
 
-        # GM at 09:00 China
         if now.hour == 9 and LAST_GM_DATE != today:
-            for chat_id in list(KNOWN_CHATS):
+            for chat_id in KNOWN_CHATS:
                 try:
-                    await app.bot.send_animation(chat_id, open("gm.gif", "rb"))
+                    await application.bot.send_animation(chat_id, open("gm.gif", "rb"))
                 except:
                     pass
             LAST_GM_DATE = today
 
-        # GN at 23:00 China
         if now.hour == 23 and LAST_GN_DATE != today:
-            for chat_id in list(KNOWN_CHATS):
+            for chat_id in KNOWN_CHATS:
                 try:
-                    await app.bot.send_animation(chat_id, open("gn.gif", "rb"))
+                    await application.bot.send_animation(chat_id, open("gn.gif", "rb"))
                 except:
                     pass
             LAST_GN_DATE = today
 
         await asyncio.sleep(60)
 
-# ================== MAIN ==================
+async def post_init(application):
+    application.create_task(gm_gn_task(application))
 
-async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+# ================= START BOT =================
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("price", price))
-    app.add_handler(CommandHandler("chart", chart))
-    app.add_handler(CommandHandler("buy", buy))
-    app.add_handler(CommandHandler("memes", memes))
-    app.add_handler(CommandHandler("stickers", stickers))
-    app.add_handler(CommandHandler("x", x))
-    app.add_handler(CommandHandler("community", community))
-    app.add_handler(CommandHandler("nft", nft))
-    app.add_handler(CommandHandler("contract", contract))
-    app.add_handler(CommandHandler("website", website))
-    app.add_handler(CommandHandler("rules", rules))
-    app.add_handler(CommandHandler("suolala", suolala))
+app = (
+    ApplicationBuilder()
+    .token(TOKEN)
+    .post_init(post_init)
+    .build()
+)
 
-    asyncio.create_task(gm_gn_loop(app))
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("price", price))
+app.add_handler(CommandHandler("chart", chart))
+app.add_handler(CommandHandler("buy", buy))
+app.add_handler(CommandHandler("memes", memes))
+app.add_handler(CommandHandler("stickers", stickers))
+app.add_handler(CommandHandler("x", x))
+app.add_handler(CommandHandler("community", community))
+app.add_handler(CommandHandler("nft", nft))
+app.add_handler(CommandHandler("contract", contract))
+app.add_handler(CommandHandler("website", website))
+app.add_handler(CommandHandler("rules", rules))
+app.add_handler(CommandHandler("suolala", suolala))
 
-    print("✅ SUOLALA BOT RUNNING (FULL + STABLE)")
-    await app.run_polling()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+print("✅ SUOLALA BOT RUNNING (STABLE, NO CRASH)")
+app.run_polling()
