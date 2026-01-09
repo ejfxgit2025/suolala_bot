@@ -1,7 +1,7 @@
 import os
 import random
 from datetime import time
-import pytz
+from zoneinfo import ZoneInfo  # BUILT-IN, NO INSTALL NEEDED
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -9,7 +9,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 # ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
 
-# ===== IN-MEMORY CHAT STORE (SAFE) =====
+# ===== SAFE IN-MEMORY CHAT STORE =====
 KNOWN_CHATS = set()
 
 def remember_chat(update: Update):
@@ -22,7 +22,7 @@ async def send_qr_if_exists(update, name):
     if os.path.exists(path):
         await update.message.reply_photo(photo=open(path, "rb"))
 
-# ===== BASIC COMMANDS =====
+# ===== BASIC COMMANDS (UNCHANGED) =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
@@ -122,14 +122,11 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Violators will be banned 🚫"
     )
 
-# ===== RANDOM IMAGE =====
-
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     try:
         IMAGE_DIR = os.path.join(os.getcwd(), "girls")
-        images = [i for i in os.listdir(IMAGE_DIR) if i.lower().endswith((".jpg", ".png", ".jpeg"))]
-        image = random.choice(images)
+        image = random.choice(os.listdir(IMAGE_DIR))
         await update.message.reply_photo(
             photo=open(os.path.join(IMAGE_DIR, image), "rb"),
             caption="💜 We are 索拉拉 | SUOLALA 🔨"
@@ -137,19 +134,19 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
 
-# ===== AUTO GM / GN (SAFE) =====
+# ===== AUTO GM / GN (NO CRASH) =====
 
-CHINA_TZ = pytz.timezone("Asia/Shanghai")
+CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
 async def send_gm(context):
-    for chat_id in list(KNOWN_CHATS):
+    for chat_id in KNOWN_CHATS:
         try:
             await context.bot.send_animation(chat_id=chat_id, animation=open("gm.gif", "rb"))
         except:
             pass
 
 async def send_gn(context):
-    for chat_id in list(KNOWN_CHATS):
+    for chat_id in KNOWN_CHATS:
         try:
             await context.bot.send_animation(chat_id=chat_id, animation=open("gn.gif", "rb"))
         except:
@@ -159,11 +156,9 @@ async def send_gn(context):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# Schedule jobs (China time)
 app.job_queue.run_daily(send_gm, time=time(hour=9, minute=0, tzinfo=CHINA_TZ))
 app.job_queue.run_daily(send_gn, time=time(hour=23, minute=0, tzinfo=CHINA_TZ))
 
-# Handlers
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("price", price))
 app.add_handler(CommandHandler("chart", chart))
@@ -178,5 +173,5 @@ app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 
-print("✅ SUOLALA BOT RUNNING WITH SAFE GM/GN")
+print("✅ SUOLALA BOT RUNNING (CRASH-PROOF)")
 app.run_polling()
