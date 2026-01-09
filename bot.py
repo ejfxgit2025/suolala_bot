@@ -70,14 +70,18 @@ async def count_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ================= /top =================
+
 async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cur.execute("""
-    SELECT user_id, count FROM stats
-    WHERE chat_id=? AND year_week=?
-    ORDER BY count DESC LIMIT 5
+    SELECT s.user_id, s.count, u.username, u.first_name
+    FROM stats s
+    LEFT JOIN users u ON s.user_id = u.user_id
+    WHERE s.chat_id=? AND s.year_week=?
+    ORDER BY s.count DESC
+    LIMIT 5
     """, (update.effective_chat.id, current_week()))
-    rows = cur.fetchall()
 
+    rows = cur.fetchall()
     if not rows:
         await update.message.reply_text("😴 No messages this week.")
         return
@@ -85,18 +89,16 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     medals = ["🥇", "🥈", "🥉", "🎖️", "🎖️"]
     text = "🏆 **Weekly Top Chatters** 🏆\n\n"
 
-    for i, (uid, count) in enumerate(rows):
-        try:
-            member = await context.bot.get_chat_member(update.effective_chat.id, uid)
-            user = member.user
-            name = f"@{user.username}" if user.username else user.first_name
-        except:
-            name = "Unknown"
+    for i, (uid, count, username, first_name) in enumerate(rows):
+        if username:
+            name = f"@{username}"
+        else:
+            name = first_name or "Unknown"
 
         text += f"{medals[i]} {name} — **{count}** msgs\n"
 
     await update.message.reply_text(text, parse_mode="Markdown")
-
+    
 # ================= COMMANDS (LINKS FIXED) =================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -216,3 +218,4 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING — STABLE VERSION")
 app.run_polling()
+
