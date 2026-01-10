@@ -4,6 +4,7 @@ import asyncio
 import sqlite3
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from deep_translator import GoogleTranslator
 
 from telegram import Update
 from telegram.ext import (
@@ -63,7 +64,39 @@ async def send_qr_if_exists(update, name):
     path = f"qrcodes/{name}.jpg"
     if os.path.exists(path):
         await update.message.reply_photo(photo=open(path, "rb"))
+        
+# ===== TRANSLATER =====
+async def translate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.reply_to_message:
+        await update.message.reply_text("❗ Reply to a message and type /translate")
+        return
 
+    original = update.message.reply_to_message.text
+    if not original:
+        await update.message.reply_text("❗ Nothing to translate")
+        return
+
+    try:
+        # Try English first
+        translated = GoogleTranslator(source="auto", target="en").translate(original)
+        flag = "🇬🇧"
+
+        # If already English, translate to Chinese
+        if translated.strip().lower() == original.strip().lower():
+            translated = GoogleTranslator(source="auto", target="zh-CN").translate(original)
+            flag = "🇨🇳"
+
+        sent = await update.message.reply_text(
+            f"{flag} Translation:\n{translated}"
+        )
+
+        # Auto delete after 30 seconds
+        await asyncio.sleep(30)
+        await sent.delete()
+
+    except Exception:
+        await update.message.reply_text("❌ Translation failed (free limit)")
+        
 # ===== MESSAGE TRACKER (NEW) =====
 async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
@@ -362,7 +395,9 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
 
 # WELCOME 
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
-    
+
+# TRANSLATER
+app.add_handler(CommandHandler("translate", translate_cmd))
 
 # ALL COMMANDS REGISTERED
 app.add_handler(CommandHandler("start", start))
@@ -384,4 +419,5 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
