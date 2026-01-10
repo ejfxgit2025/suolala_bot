@@ -152,26 +152,57 @@ async def gm_gn_task(application):
         now = datetime.now(CHINA_TZ)
         today = now.date()
 
-        if now.hour == 10 and LAST_GM_DATE != today:
+        # ===== GM (10:30 China = 08:00 Sri Lanka) =====
+        if now.hour == 10 and now.minute == 30 and LAST_GM_DATE != today:
             for chat_id in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(chat_id, open("gm.gif", "rb"))
+                    await application.bot.send_animation(
+                        chat_id=chat_id,
+                        animation=open("gm.gif", "rb"),
+                        caption="🌅 **Good Morning, SUOLALA Family!**\n\n"
+                                "🐉 Wake up strong, stay bullish 💎\n"
+                                "🇨🇳 索拉拉与你同在 ☀️🔥"
+                    )
                 except:
-                    pass
+                    try:
+                        await application.bot.send_message(
+                            chat_id=chat_id,
+                            text="🌅 **Good Morning, SUOLALA Family!**\n\n"
+                                 "🐉 Wake up strong, stay bullish 💎\n"
+                                 "🇨🇳 索拉拉与你同在 ☀️🔥",
+                            parse_mode="Markdown"
+                        )
+                    except:
+                        pass
+
             LAST_GM_DATE = today
 
+        # ===== GN (23:00 China = 20:30 Sri Lanka) =====
         if now.hour == 23 and LAST_GN_DATE != today:
             for chat_id in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(chat_id, open("gn.gif", "rb"))
+                    await application.bot.send_animation(
+                        chat_id=chat_id,
+                        animation=open("gn.gif", "rb"),
+                        caption="🌙 **Good Night, SUOLALA Family!**\n\n"
+                                "🐉 Rest well, tomorrow we rise 🚀\n"
+                                "🇨🇳 索拉拉晚安 🌙💜"
+                    )
                 except:
-                    pass
+                    try:
+                        await application.bot.send_message(
+                            chat_id=chat_id,
+                            text="🌙 **Good Night, SUOLALA Family!**\n\n"
+                                 "🐉 Rest well, tomorrow we rise 🚀\n"
+                                 "🇨🇳 索拉拉晚安 🌙💜",
+                            parse_mode="Markdown"
+                        )
+                    except:
+                        pass
+
             LAST_GN_DATE = today
 
         await asyncio.sleep(60)
-
-async def post_init(application):
-    application.create_task(gm_gn_task(application))
 
 # ================= START BOT =================
 
@@ -198,4 +229,5 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING (STABLE, NO CRASH)")
 app.run_polling()
+
 
