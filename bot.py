@@ -152,7 +152,7 @@ async def gm_gn_task(application):
         now = datetime.now(CHINA_TZ)
         today = now.date()
 
-        if now.hour == 9 and LAST_GM_DATE != today:
+        if now.hour == 10 and LAST_GM_DATE != today:
             for chat_id in KNOWN_CHATS:
                 try:
                     await application.bot.send_animation(chat_id, open("gm.gif", "rb"))
@@ -198,3 +198,4 @@ app.add_handler(CommandHandler("suolala", suolala))
 
 print("✅ SUOLALA BOT RUNNING (STABLE, NO CRASH)")
 app.run_polling()
+
