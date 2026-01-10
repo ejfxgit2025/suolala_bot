@@ -5,33 +5,31 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    ContextTypes,
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# ================= CONFIG =================
-
+# ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
+
+# ===== TIMEZONE =====
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
+# ===== MEMORY =====
 KNOWN_CHATS = set()
 LAST_GM_DATE = None
 LAST_GN_DATE = None
 
-# ================= HELPERS =================
-
+# ===== SAVE CHAT =====
 def remember_chat(update: Update):
     if update and update.effective_chat:
         KNOWN_CHATS.add(update.effective_chat.id)
 
+# ===== QR HELPER =====
 async def send_qr_if_exists(update, name):
     path = f"qrcodes/{name}.jpg"
     if os.path.exists(path):
         await update.message.reply_photo(photo=open(path, "rb"))
 
-# ================= COMMANDS =================
+# ===== BASIC COMMANDS =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
@@ -66,7 +64,7 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛒 How to Buy SUOLALA\n"
         "1️⃣ Create Phantom wallet\n"
         "2️⃣ Buy SOL\n"
-        "3️⃣ Go to Jupiter\n"
+        "3️⃣ Go to Jupiter \n"
         "4️⃣ Paste contract\n"
         "5️⃣ Swap SOL → SUOLALA\n\n"
         "🔥 Welcome to the dragon side"
@@ -95,8 +93,7 @@ async def x(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def community(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     await update.message.reply_text(
-        "👥 Twitter Community\n"
-        "https://twitter.com/i/communities/1980324795851186529"
+        "👥 Twitter Community\nhttps://twitter.com/i/communities/1980324795851186529"
     )
     await send_qr_if_exists(update, "community")
 
@@ -107,16 +104,14 @@ async def nft(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def contract(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     await update.message.reply_text(
-        "📜 Contract Address\n"
-        "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+        "📜 Contract Address\nCY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
     )
     await send_qr_if_exists(update, "contract")
 
 async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     await update.message.reply_text(
-        "🌐 Website\n"
-        "https://trends.fun/token/CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+        "🌐 Website\nhttps://trends.fun/token/CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
     )
     await send_qr_if_exists(update, "website")
 
@@ -124,26 +119,24 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     await update.message.reply_text(
         "📌 GROUP RULES\n"
-        "1️⃣ No spam\n"
-        "2️⃣ No scams\n"
-        "3️⃣ No fake links\n"
-        "4️⃣ Respect everyone\n"
-        "Violators will be banned 🚫"
+        "1️⃣ No spam\n2️⃣ No scams\n3️⃣ No fake links\n4️⃣ Respect everyone"
     )
+
+# ===== RANDOM SUOLALA IMAGE =====
 
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
-    IMAGE_DIR = "girls"
+    IMAGE_DIR = os.path.join(os.getcwd(), "girls")
     image = random.choice([
-        f for f in os.listdir(IMAGE_DIR)
-        if f.lower().endswith((".jpg", ".png", ".jpeg"))
+        img for img in os.listdir(IMAGE_DIR)
+        if img.lower().endswith((".jpg", ".png", ".jpeg"))
     ])
     await update.message.reply_photo(
         photo=open(os.path.join(IMAGE_DIR, image), "rb"),
         caption="💜 We are 索拉拉 | SUOLALA 🔨"
     )
 
-# ================= GM / GN BACKGROUND TASK =================
+# ===== GM / GN TASK (NEW FEATURE) =====
 
 async def gm_gn_task(application):
     global LAST_GM_DATE, LAST_GN_DATE
@@ -152,59 +145,56 @@ async def gm_gn_task(application):
         now = datetime.now(CHINA_TZ)
         today = now.date()
 
-        # ===== GM (10:30 China = 08:00 Sri Lanka) =====
-        if now.hour == 10 and now.minute == 30 and LAST_GM_DATE != today:
-            for chat_id in KNOWN_CHATS:
+        # 🌅 GM — 11:00 China
+        if now.hour == 11 and LAST_GM_DATE != today:
+            for chat_id in list(KNOWN_CHATS):
                 try:
-                    await application.bot.send_animation(
-                        chat_id=chat_id,
-                        animation=open("gm.gif", "rb"),
-                        caption="🌅 **Good Morning, SUOLALA Family!**\n\n"
-                                "🐉 Wake up strong, stay bullish 💎\n"
-                                "🇨🇳 索拉拉与你同在 ☀️🔥"
-                    )
+                    with open("gm.gif", "rb") as f:
+                        await application.bot.send_animation(
+                            chat_id=chat_id,
+                            animation=f,
+                            caption="🌅 **Good Morning, SUOLALA Family!** 🐉💎\n\n"
+                                    "🔥 Wake up strong, stay bullish!",
+                            parse_mode="Markdown"
+                        )
                 except:
                     try:
                         await application.bot.send_message(
                             chat_id=chat_id,
-                            text="🌅 **Good Morning, SUOLALA Family!**\n\n"
-                                 "🐉 Wake up strong, stay bullish 💎\n"
-                                 "🇨🇳 索拉拉与你同在 ☀️🔥",
-                            parse_mode="Markdown"
+                            text="🌅 Good Morning, SUOLALA Family! 🐉💎\n🔥 Wake up strong, stay bullish!"
                         )
                     except:
                         pass
-
             LAST_GM_DATE = today
 
-        # ===== GN (23:00 China = 20:30 Sri Lanka) =====
+        # 🌙 GN — 23:00 China
         if now.hour == 23 and LAST_GN_DATE != today:
-            for chat_id in KNOWN_CHATS:
+            for chat_id in list(KNOWN_CHATS):
                 try:
-                    await application.bot.send_animation(
-                        chat_id=chat_id,
-                        animation=open("gn.gif", "rb"),
-                        caption="🌙 **Good Night, SUOLALA Family!**\n\n"
-                                "🐉 Rest well, tomorrow we rise 🚀\n"
-                                "🇨🇳 索拉拉晚安 🌙💜"
-                    )
+                    with open("gn.gif", "rb") as f:
+                        await application.bot.send_animation(
+                            chat_id=chat_id,
+                            animation=f,
+                            caption="🌙 **Good Night, SUOLALA Family!** 🐉💜\n\n"
+                                    "🚀 Tomorrow we rise again!",
+                            parse_mode="Markdown"
+                        )
                 except:
                     try:
                         await application.bot.send_message(
                             chat_id=chat_id,
-                            text="🌙 **Good Night, SUOLALA Family!**\n\n"
-                                 "🐉 Rest well, tomorrow we rise 🚀\n"
-                                 "🇨🇳 索拉拉晚安 🌙💜",
-                            parse_mode="Markdown"
+                            text="🌙 Good Night, SUOLALA Family! 🐉💜\n🚀 Tomorrow we rise again!"
                         )
                     except:
                         pass
-
             LAST_GN_DATE = today
 
         await asyncio.sleep(60)
 
-# ================= START BOT =================
+# ===== START BOT =====
+
+async def post_init(application):
+    application.create_task(gm_gn_task(application))
 
 app = (
     ApplicationBuilder()
@@ -227,7 +217,5 @@ app.add_handler(CommandHandler("website", website))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 
-print("✅ SUOLALA BOT RUNNING (STABLE, NO CRASH)")
+print("✅ SUOLALA BOT RUNNING WITH GM/GN (11 & 23 CHINA)")
 app.run_polling()
-
-
