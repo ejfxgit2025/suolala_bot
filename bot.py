@@ -90,8 +90,8 @@ async def translate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{flag} Translation:\n{translated}"
         )
 
-        # Auto delete after 60 seconds
-        await asyncio.sleep(60)
+        # Auto delete after 40 seconds
+        await asyncio.sleep(40)
         await sent.delete()
 
     except Exception:
@@ -419,6 +419,7 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
