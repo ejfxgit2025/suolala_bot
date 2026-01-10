@@ -301,6 +301,31 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{medals[i]} {name} — {count}\n"
     await update.message.reply_text(text)
 
+# ===== WELCOME =====
+async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.new_chat_members:
+        return
+
+    for user in update.message.new_chat_members:
+        # Mention user (works even if no @username)
+        name = f"[{user.first_name}](tg://user?id={user.id})"
+
+        text = (
+            f"🎉 Welcome {name}!\n\n"
+            "🐉 **Welcome to 索拉拉 SUOLALA CTO**\n"
+            "💎 Stay strong. Stay patient."
+        )
+
+        try:
+            with open("welcome.gif", "rb") as gif:
+                await update.message.reply_animation(
+                    animation=gif,
+                    caption=text,
+                    parse_mode="Markdown"
+                )
+        except:
+            await update.message.reply_text(text, parse_mode="Markdown")
+            
 # ===== GM / GN TASK =====
 async def gm_gn_task(application):
     global LAST_GM_DATE, LAST_GN_DATE
@@ -335,6 +360,10 @@ app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
 # MESSAGE TRACKER MUST BE FIRST
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
 
+# WELCOME 
+app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
+    
+
 # ALL COMMANDS REGISTERED
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("price", price))
@@ -355,3 +384,4 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
