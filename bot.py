@@ -196,6 +196,26 @@ MOTIVATIONS = [
     "🔥 Conviction outlasts volatility in SUOLALA 🌊",
     "🧠 Strong mindset keeps SUOLALA steady 🎯",
     "🐲 Those who wait patiently shape SUOLALA’s future 💎",
+    "🐉 SUOLALA is built by patience, not pressure 💎",
+    "💎 Those who believe early give SUOLALA its strength 🔥",
+    "🚀 SUOLALA grows when holders stay focused ⏳",
+    "🧠 Calm thinking keeps SUOLALA moving forward 🎯",
+    "💪 SUOLALA rewards those who don’t rush 🛡️",
+    "🔥 Real support is holding, not talking 🐉",
+    "⏰ Time and belief shape SUOLALA together 💎",
+    "🛡️ Strong holders protect SUOLALA’s future 🔒",
+    "🐲 SUOLALA stands firm when noise gets loud 🌊",
+    "💎 Trust the process — SUOLALA is still building 🧱",
+    "🚀 SUOLALA moves best with steady hands ⏳",
+    "🧠 Discipline today strengthens SUOLALA tomorrow 💎",
+    "🔥 Community belief keeps SUOLALA alive 🐉",
+    "💪 Holding SUOLALA means trusting your choice 🛡️",
+    "⏰ Long vision gives SUOLALA real value 💎",
+    "🐲 SUOLALA grows quietly before big moves 🔥",
+    "🛡️ Calm holders build lasting SUOLALA strength 💎",
+    "🚀 SUOLALA is a journey, not a quick flip ⏳",
+    "💎 Staying consistent builds SUOLALA confidence 🧠",
+    "🐉 Those who stay patient shape SUOLALA’s path 💎",
 ]
 
 async def motivate(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -281,3 +301,4 @@ app.add_handler(CommandHandler("motivate", motivate))
 
 print("✅ SUOLALA BOT RUNNING (UNCHANGED + 50 MOTIVATIONS)")
 app.run_polling()
+
