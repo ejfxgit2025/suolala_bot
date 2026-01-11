@@ -202,7 +202,36 @@ async def community(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def nft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
-    await update.message.reply_text("🖼 NFTs coming soon 👀")
+
+    caption = (
+        "🚀 索拉拉 | Suolala NFT is LIVE\n\n"
+        "索拉拉 is the premier Chinese ticker on Solana, inspired by Lily Liu "
+        "and built by real builders 🔨💜\n\n"
+        "💡 CTO Project\n"
+        "❌ No VC\n"
+        "❌ No whales\n"
+        "✅ Community-driven\n\n"
+        "After months where many memecoins died, 索拉拉 is still alive — "
+        "powered purely by belief and builders.\n\n"
+        "🎨 Why Suolala NFT?\n"
+        "• Strengthen community unity\n"
+        "• Increase brand visibility\n"
+        "• 🔥 Burn 索拉拉 tokens\n\n"
+        "🪙 Mint Info\n"
+        "• Mint with a small amount of 索拉拉\n"
+        "• 🔥 All mint tokens are burned\n"
+        "• ~$1 SOL fee (LaunchMyNFT)\n\n"
+        "🔗 Mint here:\n"
+        "https://launchmynft.io/collections/wNeq7jJgwz89yDdXGje5AZGJtfknHmxwYijecMhDoSQ/TYrJFpW1PtmXoQWPtXXv\n\n"
+        "🏃 让我们奔跑吧索拉拉们\n"
+        "Built by builders. Alive by belief."
+    )
+
+    with open("nft.jpg", "rb") as photo:
+        await update.message.reply_photo(
+            photo=photo,
+            caption=caption
+        )
 
 async def contract(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
@@ -428,4 +457,5 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
