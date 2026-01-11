@@ -459,9 +459,6 @@ print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_webhook(
     listen="0.0.0.0",
     port=int(os.environ.get("PORT", 8080)),
-    url_path=TOKEN,
-    webhook_url=os.environ["RAILWAY_STATIC_URL"] + "/" + TOKEN
+    url_path=os.environ["BOT_TOKEN"],
+    webhook_url=f"{os.environ['RAILWAY_STATIC_URL']}/{os.environ['BOT_TOKEN']}"
 )
-
-
-
