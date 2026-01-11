@@ -456,6 +456,12 @@ app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
-app.run_polling()
+app.run_webhook(
+    listen="0.0.0.0",
+    port=int(os.environ.get("PORT", 8080)),
+    url_path=TOKEN,
+    webhook_url=os.environ["RAILWAY_STATIC_URL"] + "/" + TOKEN
+)
+
 
 
