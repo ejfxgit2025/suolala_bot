@@ -21,13 +21,18 @@ TOKEN = os.getenv("BOT_TOKEN")
 # ===== TIMEZONE =====
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
-# ===== MEMORY =====
+# ===== MEMORY (FIXED GM/GN) =====
+KNOWN_CHATS_FILE = "known_chats.txt"
 KNOWN_CHATS = set()
 LAST_GM_DATE = None
 LAST_GN_DATE = None
 USED_MOTIVATIONS = {}
 
-# ===== DATABASE (NEW) =====
+if os.path.exists(KNOWN_CHATS_FILE):
+    with open(KNOWN_CHATS_FILE, "r") as f:
+        KNOWN_CHATS = set(map(int, f.read().splitlines()))
+
+# ===== DATABASE =====
 db = sqlite3.connect("weekly_stats.db", check_same_thread=False)
 cur = db.cursor()
 
@@ -54,18 +59,22 @@ def current_week():
     y, w, _ = datetime.utcnow().isocalendar()
     return f"{y}-W{w:02d}"
 
-# ===== SAVE CHAT =====
+# ===== SAVE CHAT (FIXED) =====
 def remember_chat(update: Update):
     if update and update.effective_chat:
-        KNOWN_CHATS.add(update.effective_chat.id)
+        cid = update.effective_chat.id
+        if cid not in KNOWN_CHATS:
+            KNOWN_CHATS.add(cid)
+            with open(KNOWN_CHATS_FILE, "a") as f:
+                f.write(str(cid) + "\n")
 
 # ===== QR HELPER =====
 async def send_qr_if_exists(update, name):
     path = f"qrcodes/{name}.jpg"
     if os.path.exists(path):
         await update.message.reply_photo(photo=open(path, "rb"))
-        
-# ===== TRANSLATER =====
+
+# ===== TRANSLATE =====
 async def translate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.reply_to_message:
         await update.message.reply_text("❗ Reply to a message and type /translate")
@@ -77,31 +86,22 @@ async def translate_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # Try English first
         translated = GoogleTranslator(source="auto", target="en").translate(original)
         flag = "🇬🇧"
 
-        # If already English, translate to Chinese
         if translated.strip().lower() == original.strip().lower():
             translated = GoogleTranslator(source="auto", target="zh-CN").translate(original)
             flag = "🇨🇳"
 
-        sent = await update.message.reply_text(
-            f"{flag} Translation:\n{translated}"
-        )
-
-        # Auto delete after 40 seconds
+        sent = await update.message.reply_text(f"{flag} Translation:\n{translated}")
         await asyncio.sleep(40)
         await sent.delete()
+    except:
+        await update.message.reply_text("❌ Translation failed")
 
-    except Exception:
-        await update.message.reply_text("❌ Translation failed (free limit)")
-        
-# ===== MESSAGE TRACKER (NEW) =====
+# ===== MESSAGE TRACKER =====
 async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
-        return
-    if update.message.from_user.is_bot:
+    if not update.message or update.message.from_user.is_bot:
         return
     if update.effective_chat.type == "private":
         return
@@ -219,7 +219,7 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     img = random.choice([f for f in os.listdir(IMAGE_DIR) if f.lower().endswith(("jpg","png","jpeg"))])
     await update.message.reply_photo(open(f"{IMAGE_DIR}/{img}", "rb"))
 
-# ===== MOTIVATIONS (FULL 70 – UNCHANGED) =====
+# ===== MOTIVATIONS (ALL 70) =====
 MOTIVATIONS = [
     "🐉 SUOLALA is built by those who stay 💎",
     "💎 Holding SUOLALA means trusting your own vision 🔮",
@@ -340,9 +340,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     for user in update.message.new_chat_members:
-        # Mention user (works even if no @username)
         name = f"[{user.first_name}](tg://user?id={user.id})"
-
         text = (
             f"🎉 Welcome {name}!\n\n"
             "🐉 **Welcome to 索拉拉 SUOLALA CTO**\n"
@@ -358,26 +356,26 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
         except:
             await update.message.reply_text(text, parse_mode="Markdown")
-            
-# ===== GM / GN TASK =====
+
+# ===== GM / GN TASK (FIXED) =====
 async def gm_gn_task(application):
     global LAST_GM_DATE, LAST_GN_DATE
     while True:
         now = datetime.now(CHINA_TZ)
         today = now.date()
 
-        if now.hour == 11 and LAST_GM_DATE != today:
+        if 11 <= now.hour < 12 and LAST_GM_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(cid, open("gm.gif","rb"))
+                    await application.bot.send_animation(cid, open("gm.gif", "rb"))
                 except:
                     pass
             LAST_GM_DATE = today
 
-        if now.hour == 23 and LAST_GN_DATE != today:
+        if 23 <= now.hour < 24 and LAST_GN_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(cid, open("gn.gif","rb"))
+                    await application.bot.send_animation(cid, open("gn.gif", "rb"))
                 except:
                     pass
             LAST_GN_DATE = today
@@ -393,13 +391,13 @@ app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
 # MESSAGE TRACKER MUST BE FIRST
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
 
-# WELCOME 
+# WELCOME
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 
 # TRANSLATER
 app.add_handler(CommandHandler("translate", translate_cmd))
 
-# ALL COMMANDS REGISTERED
+# ALL COMMANDS REGISTERED (UNCHANGED)
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("price", price))
 app.add_handler(CommandHandler("chart", chart))
@@ -419,7 +417,3 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
-
-
-
-
