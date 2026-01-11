@@ -154,13 +154,24 @@ async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
-    await update.message.reply_text(
-        "🛒 How to Buy SUOLALA\n"
-        "1️⃣ Create Phantom wallet\n"
-        "2️⃣ Buy SOL\n"
-        "3️⃣ Go to Jupiter\n"
-        "4️⃣ Paste contract\n"
-        "5️⃣ Swap SOL → SUOLALA"
+
+    await context.bot.send_animation(
+        chat_id=update.effective_chat.id,
+        animation=open("buy.gif", "rb"),
+        caption=
+    "╔══════════════════════════════╗\n"
+    "        🚀 HOW TO BUY SUOLALA\n"
+    "╚══════════════════════════════╝\n\n"
+    "👛 ① Create a Phantom Wallet\n"
+    "💰 ② Buy SOL & fund your wallet\n"
+    "🪐 ③ Open Jupiter Exchange\n"
+    "🔗 https://jup.ag\n"
+    "📋 ④ Paste the SUOLALA Contract\n"
+    "🔁 ⑤ Swap SOL ➜ SUOLALA\n\n"
+    "═══════════════════════════════\n"
+    "📜 OFFICIAL CONTRACT ADDRESS\n"
+    "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8\n"
+    "═══════════════════════════════"
     )
     await send_qr_if_exists(update, "buy")
 
@@ -417,3 +428,4 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
