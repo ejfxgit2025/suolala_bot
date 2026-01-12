@@ -2,7 +2,7 @@ import os
 import random
 import asyncio
 import sqlite3
-from datetime import datetime
+from datetime import time
 from zoneinfo import ZoneInfo
 from deep_translator import GoogleTranslator
 
@@ -435,7 +435,49 @@ async def post_init(app):
     app.create_task(gm_gn_task(app))
 
 # ===== START BOT =====
+# ===== GM / GN JOBS (STABLE) =====
+async def gm_job(context: ContextTypes.DEFAULT_TYPE):
+    global LAST_GM_DATE
+    today = datetime.now(ZoneInfo("Asia/Colombo")).date()
+
+    if LAST_GM_DATE == today:
+        return
+
+    for cid in KNOWN_CHATS:
+        try:
+            await context.bot.send_animation(cid, open("gm.gif", "rb"))
+        except:
+            pass
+
+    LAST_GM_DATE = today
+
+
+async def gn_job(context: ContextTypes.DEFAULT_TYPE):
+    global LAST_GN_DATE
+    today = datetime.now(ZoneInfo("Asia/Colombo")).date()
+
+    if LAST_GN_DATE == today:
+        return
+
+    for cid in KNOWN_CHATS:
+        try:
+            await context.bot.send_animation(cid, open("gn.gif", "rb"))
+        except:
+            pass
+
+    LAST_GN_DATE = today
+    
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
+
+app.job_queue.run_daily(
+    gm_job,
+    time=time(hour=8, minute=30, tzinfo=ZoneInfo("Asia/Colombo"))
+)
+
+app.job_queue.run_daily(
+    gn_job,
+    time=time(hour=20, minute=30, tzinfo=ZoneInfo("Asia/Colombo"))
+)
 
 # MESSAGE TRACKER MUST BE FIRST
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
@@ -466,6 +508,7 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
