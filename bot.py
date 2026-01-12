@@ -2,7 +2,7 @@ import os
 import random
 import asyncio
 import sqlite3
-from datetime import time
+from datetime import datetime
 from zoneinfo import ZoneInfo
 from deep_translator import GoogleTranslator
 
@@ -397,34 +397,28 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except:
             await update.message.reply_text(text, parse_mode="Markdown")
 
-# ===== GM / GN TASK (FIXED) =====
+# ===== GM / GN LOOP (ONLY METHOD USED) =====
 async def gm_gn_task(application):
     global LAST_GM_DATE, LAST_GN_DATE
 
     while True:
-        now = datetime.now(ZoneInfo("Asia/Colombo"))
+        now = datetime.now(TZ)
         today = now.date()
 
-        # 🌞 GM — 08:30 Sri Lanka time
+        # GM 08:30 AM
         if now.hour == 8 and now.minute == 30 and LAST_GM_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(
-                        chat_id=cid,
-                        animation=open("gm.gif", "rb")
-                    )
+                    await application.bot.send_animation(cid, open("gm.gif", "rb"))
                 except:
                     pass
             LAST_GM_DATE = today
 
-        # 🌙 GN — 20:30 Sri Lanka time
+        # GN 08:30 PM
         if now.hour == 20 and now.minute == 30 and LAST_GN_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(
-                        chat_id=cid,
-                        animation=open("gn.gif", "rb")
-                    )
+                    await application.bot.send_animation(cid, open("gn.gif", "rb"))
                 except:
                     pass
             LAST_GN_DATE = today
@@ -435,49 +429,11 @@ async def post_init(app):
     app.create_task(gm_gn_task(app))
 
 # ===== START BOT =====
-# ===== GM / GN JOBS (STABLE) =====
-async def gm_job(context: ContextTypes.DEFAULT_TYPE):
-    global LAST_GM_DATE
-    today = datetime.now(ZoneInfo("Asia/Colombo")).date()
 
-    if LAST_GM_DATE == today:
-        return
-
-    for cid in KNOWN_CHATS:
-        try:
-            await context.bot.send_animation(cid, open("gm.gif", "rb"))
-        except:
-            pass
-
-    LAST_GM_DATE = today
-
-
-async def gn_job(context: ContextTypes.DEFAULT_TYPE):
-    global LAST_GN_DATE
-    today = datetime.now(ZoneInfo("Asia/Colombo")).date()
-
-    if LAST_GN_DATE == today:
-        return
-
-    for cid in KNOWN_CHATS:
-        try:
-            await context.bot.send_animation(cid, open("gn.gif", "rb"))
-        except:
-            pass
-
-    LAST_GN_DATE = today
     
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
 
-app.job_queue.run_daily(
-    gm_job,
-    time=time(hour=8, minute=30, tzinfo=ZoneInfo("Asia/Colombo"))
-)
 
-app.job_queue.run_daily(
-    gn_job,
-    time=time(hour=20, minute=30, tzinfo=ZoneInfo("Asia/Colombo"))
-)
 
 # MESSAGE TRACKER MUST BE FIRST
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
@@ -508,6 +464,7 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
