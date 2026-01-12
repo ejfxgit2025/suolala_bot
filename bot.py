@@ -19,7 +19,7 @@ from telegram.ext import (
 TOKEN = os.getenv("BOT_TOKEN")
 
 # ===== TIMEZONE =====
-CHINA_TZ = ZoneInfo("Asia/Colombo")
+TZ = ZoneInfo("Asia/Colombo")
 
 # ===== MEMORY (FIXED GM/GN) =====
 KNOWN_CHATS_FILE = "known_chats.txt"
@@ -464,6 +464,7 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
