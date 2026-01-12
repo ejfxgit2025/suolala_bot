@@ -19,7 +19,7 @@ from telegram.ext import (
 TOKEN = os.getenv("BOT_TOKEN")
 
 # ===== TIMEZONE =====
-CHINA_TZ = ZoneInfo("Asia/Shanghai")
+CHINA_TZ = ZoneInfo("Asia/Colombo")
 
 # ===== MEMORY (FIXED GM/GN) =====
 KNOWN_CHATS_FILE = "known_chats.txt"
@@ -400,27 +400,36 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # ===== GM / GN TASK (FIXED) =====
 async def gm_gn_task(application):
     global LAST_GM_DATE, LAST_GN_DATE
+
     while True:
-        now = datetime.now(CHINA_TZ)
+        now = datetime.now(ZoneInfo("Asia/Colombo"))
         today = now.date()
 
-        if 11 <= now.hour < 12 and LAST_GM_DATE != today:
+        # 🌞 GM — 08:30 Sri Lanka time
+        if now.hour == 8 and now.minute == 30 and LAST_GM_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(cid, open("gm.gif", "rb"))
+                    await application.bot.send_animation(
+                        chat_id=cid,
+                        animation=open("gm.gif", "rb")
+                    )
                 except:
                     pass
             LAST_GM_DATE = today
 
-        if 23 <= now.hour < 24 and LAST_GN_DATE != today:
+        # 🌙 GN — 20:30 Sri Lanka time
+        if now.hour == 20 and now.minute == 30 and LAST_GN_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(cid, open("gn.gif", "rb"))
+                    await application.bot.send_animation(
+                        chat_id=cid,
+                        animation=open("gn.gif", "rb")
+                    )
                 except:
                     pass
             LAST_GN_DATE = today
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(30)
 
 async def post_init(app):
     app.create_task(gm_gn_task(app))
@@ -457,6 +466,7 @@ app.add_handler(CommandHandler("top", top_cmd))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
