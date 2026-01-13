@@ -452,20 +452,19 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         name = nft.get("title", "Suolala NFT")
         mint = nft.get("tokenMint")
+
         price_lamports = (
-        nft.get("priceLamports")
-        or nft.get("price")
-        or 0
-)
+            nft.get("priceLamports")
+            or nft.get("price")
+            or 0
+        )
 
-       price = price_lamports / 1_000_000_000
-
+        price = price_lamports / 1_000_000_000
 
         if not mint:
             await update.message.reply_text("⚠️ NFT mint missing. Try again.")
             return
 
-        # 🔥 FETCH FULL METADATA (IMAGE FIX)
         token_url = f"https://api-mainnet.magiceden.dev/v2/tokens/{mint}"
         token_data = requests.get(token_url, headers=headers, timeout=15).json()
 
@@ -475,12 +474,14 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Image not available. Try again.")
             return
 
+        price_text = f"{price:.3f} SOL" if price > 0 else "Not priced"
+
         buy_link = f"https://magiceden.io/item-details/{mint}"
 
         caption = (
             f"🎲 **Random Listed NFT**\n\n"
             f"🖼 **{name}**\n"
-            f"💰 **{price:.3f} SOL**\n"
+            f"💰 **{price_text}**\n"
             f"🛒 Buy on Magic Eden\n"
             f"🔗 {buy_link}"
         )
@@ -531,6 +532,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
