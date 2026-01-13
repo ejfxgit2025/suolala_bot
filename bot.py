@@ -433,7 +433,7 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
 
     try:
-        url = MAGICEDEN_LIST_URL.format(MAGICEDEN_COLLECTION)
+        list_url = MAGICEDEN_LIST_URL.format(MAGICEDEN_COLLECTION)
 
         headers = {
             "accept": "application/json",
@@ -442,24 +442,30 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "referer": "https://magiceden.io/"
         }
 
-        response = requests.get(url, headers=headers, timeout=15)
-        data = response.json()
+        listings = requests.get(list_url, headers=headers, timeout=15).json()
 
-        if not isinstance(data, list) or len(data) == 0:
+        if not isinstance(listings, list) or not listings:
             await update.message.reply_text("❌ No Suolala NFTs listed right now.")
             return
 
-        nft = random.choice(data)
+        nft = random.choice(listings)
 
-        # ✅ THESE FIELDS WORK
         name = nft.get("title", "Suolala NFT")
         mint = nft.get("tokenMint")
-        image = nft.get("img")
-        price_lamports = nft.get("price", 0)
-        price = price_lamports / 1_000_000_000
+        price = nft.get("price", 0) / 1_000_000_000
 
-        if not mint or not image:
-            await update.message.reply_text("⚠️ NFT data incomplete. Try again.")
+        if not mint:
+            await update.message.reply_text("⚠️ NFT mint missing. Try again.")
+            return
+
+        # 🔥 FETCH FULL METADATA (IMAGE FIX)
+        token_url = f"https://api-mainnet.magiceden.dev/v2/tokens/{mint}"
+        token_data = requests.get(token_url, headers=headers, timeout=15).json()
+
+        image = token_data.get("image")
+
+        if not image:
+            await update.message.reply_text("⚠️ Image not available. Try again.")
             return
 
         buy_link = f"https://magiceden.io/item-details/{mint}"
@@ -481,6 +487,7 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print("RandomNFT error:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
+
 
 
 
@@ -517,6 +524,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
