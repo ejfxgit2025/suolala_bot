@@ -474,7 +474,11 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ Image not available. Try again.")
             return
 
-        price_text = f"{price:.3f} SOL" if price > 0 else "Not priced"
+        if price > 0:
+    price_text = f"{price:.3f} SOL"
+else:
+    price_text = "Listed (check price on Magic Eden)"
+
 
         buy_link = f"https://magiceden.io/item-details/{mint}"
 
@@ -532,6 +536,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
