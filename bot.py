@@ -442,6 +442,7 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "referer": "https://magiceden.io/"
         }
 
+        # 1️⃣ Get listed NFTs
         listings = requests.get(list_url, headers=headers, timeout=15).json()
 
         if not isinstance(listings, list) or not listings:
@@ -453,18 +454,24 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = nft.get("title", "Suolala NFT")
         mint = nft.get("tokenMint")
 
+        # 2️⃣ Get price safely
         price_lamports = (
             nft.get("priceLamports")
             or nft.get("price")
             or 0
         )
-
         price = price_lamports / 1_000_000_000
+
+        if price > 0:
+            price_text = f"{price:.3f} SOL"
+        else:
+            price_text = "Listed (check price on Magic Eden)"
 
         if not mint:
             await update.message.reply_text("⚠️ NFT mint missing. Try again.")
             return
 
+        # 3️⃣ Fetch metadata for image
         token_url = f"https://api-mainnet.magiceden.dev/v2/tokens/{mint}"
         token_data = requests.get(token_url, headers=headers, timeout=15).json()
 
@@ -473,12 +480,6 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not image:
             await update.message.reply_text("⚠️ Image not available. Try again.")
             return
-
-        if price > 0:
-    price_text = f"{price:.3f} SOL"
-else:
-    price_text = "Listed (check price on Magic Eden)"
-
 
         buy_link = f"https://magiceden.io/item-details/{mint}"
 
@@ -499,7 +500,6 @@ else:
     except Exception as e:
         print("RandomNFT error:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
-
 
 
 
@@ -536,6 +536,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
