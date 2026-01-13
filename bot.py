@@ -453,12 +453,12 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = nft.get("title", "Suolala NFT")
         mint = nft.get("tokenMint")
         price_lamports = (
-    nft.get("priceLamports")
-    or nft.get("price")
-    or 0
+        nft.get("priceLamports")
+        or nft.get("price")
+        or 0
 )
 
-price = price_lamports / 1_000_000_000
+       price = price_lamports / 1_000_000_000
 
 
         if not mint:
@@ -531,6 +531,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
