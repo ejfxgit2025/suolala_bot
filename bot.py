@@ -198,12 +198,14 @@ async def x(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🐦 X\nhttps://x.com/suolalax")
     await send_qr_if_exists(update, "x")
 
+
 async def community(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     await update.message.reply_text(
         "👥 Community\nhttps://twitter.com/i/communities/1980324795851186529"
     )
-
+    await send_qr_if_exists(update, "community")
+    
 async def nft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
 
@@ -544,6 +546,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
