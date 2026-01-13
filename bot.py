@@ -2,6 +2,7 @@ import os
 import random
 import asyncio
 import sqlite3
+import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from deep_translator import GoogleTranslator
@@ -14,6 +15,9 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+
+MAGICEDEN_COLLECTION = "suolala_"
+MAGICEDEN_LIST_URL = "https://api-mainnet.magiceden.dev/v2/collections/{}/listings?limit=100"
 
 # ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
@@ -425,6 +429,40 @@ async def gm_gn_task(application):
 async def post_init(app):
     app.create_task(gm_gn_task(app))
 
+async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    remember_chat(update)
+
+    try:
+        url = MAGICEDEN_LIST_URL.format(MAGICEDEN_COLLECTION)
+        data = requests.get(url, timeout=10).json()
+
+        if not data:
+            await update.message.reply_text("❌ No Suolala NFTs listed right now.")
+            return
+
+        nft = random.choice(data)
+
+        name = nft.get("title", "Suolala NFT")
+        price = nft.get("price", 0) / 1_000_000_000
+        mint = nft.get("tokenMint")
+        image = nft.get("img")
+
+        buy_link = f"https://magiceden.io/item-details/{mint}"
+
+        caption = (
+            f"🎲 **Random Listed NFT**\n\n"
+            f"🖼 **{name}**\n"
+            f"💰 **{price:.3f} SOL**\n"
+            f"🛒 Buy on Magic Eden\n"
+            f"🔗 {buy_link}"
+        )
+
+        await update.message.reply_photo(photo=image, caption=caption, parse_mode="Markdown")
+
+    except Exception as e:
+        await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
+
+
 # ===== START BOT =====
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
 
@@ -454,8 +492,10 @@ app.add_handler(CommandHandler("suolala", suolala))
 app.add_handler(CommandHandler("motivate", motivate))
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
+app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
