@@ -17,7 +17,7 @@ from telegram.ext import (
 )
 
 MAGICEDEN_COLLECTION = "suolala_"
-MAGICEDEN_LIST_URL = "https://api-mainnet.magiceden.dev/v2/search?collection={}&status=listed&limit=100"
+MAGICEDEN_LIST_URL = "https://api-mainnet.magiceden.dev/v2/collections/{}/listings?offset=0&limit=100"
 
 # ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
@@ -437,25 +437,26 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         headers = {
             "accept": "application/json",
-            "user-agent": "Mozilla/5.0"
+            "user-agent": "Mozilla/5.0",
+            "origin": "https://magiceden.io",
+            "referer": "https://magiceden.io/"
         }
 
-        response = requests.get(url, headers=headers, timeout=10)
-        payload = response.json()
+        response = requests.get(url, headers=headers, timeout=15)
+        data = response.json()
 
-        # ✅ CORRECT: get results array
-        data = payload.get("results", [])
-
-        if not data:
+        if not isinstance(data, list) or len(data) == 0:
             await update.message.reply_text("❌ No Suolala NFTs listed right now.")
             return
 
         nft = random.choice(data)
 
-        name = nft.get("name", "Suolala NFT")
-        price = nft.get("price", 0)
-        mint = nft.get("mintAddress")
-        image = nft.get("image")
+        # ✅ THESE FIELDS WORK
+        name = nft.get("title", "Suolala NFT")
+        mint = nft.get("tokenMint")
+        image = nft.get("img")
+        price_lamports = nft.get("price", 0)
+        price = price_lamports / 1_000_000_000
 
         if not mint or not image:
             await update.message.reply_text("⚠️ NFT data incomplete. Try again.")
@@ -480,6 +481,7 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print("RandomNFT error:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
+
 
 
 # ===== START BOT =====
@@ -515,6 +517,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
