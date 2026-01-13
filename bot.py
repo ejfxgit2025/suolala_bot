@@ -441,16 +441,17 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         response = requests.get(url, headers=headers, timeout=10)
-        data = response.json()
+        payload = response.json()
 
-        # Safety check
-        if not isinstance(data, list) or len(data) == 0:
+        # ✅ CORRECT: get results array
+        data = payload.get("results", [])
+
+        if not data:
             await update.message.reply_text("❌ No Suolala NFTs listed right now.")
             return
 
         nft = random.choice(data)
 
-        # Correct fields from Magic Eden
         name = nft.get("name", "Suolala NFT")
         price = nft.get("price", 0)
         mint = nft.get("mintAddress")
@@ -477,8 +478,8 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
+        print("RandomNFT error:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
-
 
 
 # ===== START BOT =====
@@ -514,6 +515,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
