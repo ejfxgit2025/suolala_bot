@@ -429,12 +429,27 @@ async def gm_gn_task(application):
 async def post_init(app):
     app.create_task(gm_gn_task(app))
 
+def get_floor_price():
+    try:
+        url = f"https://api-mainnet.magiceden.dev/v2/collections/{MAGICEDEN_COLLECTION}/stats"
+        headers = {
+            "accept": "application/json",
+            "user-agent": "Mozilla/5.0"
+        }
+        data = requests.get(url, headers=headers, timeout=10).json()
+        floor_lamports = data.get("floorPrice", 0)
+        if floor_lamports:
+            return floor_lamports / 1_000_000_000
+        return None
+    except Exception as e:
+        print("Floor price error:", e)
+        return None
+
+
 async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
 
     try:
-        list_url = MAGICEDEN_LIST_URL.format(MAGICEDEN_COLLECTION)
-
         headers = {
             "accept": "application/json",
             "user-agent": "Mozilla/5.0",
@@ -442,45 +457,46 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "referer": "https://magiceden.io/"
         }
 
+        # 1️⃣ Get listed NFTs
+        list_url = f"https://api-mainnet.magiceden.dev/v2/collections/{MAGICEDEN_COLLECTION}/listings?offset=0&limit=100"
         listings = requests.get(list_url, headers=headers, timeout=15).json()
 
         if not isinstance(listings, list) or not listings:
             await update.message.reply_text("❌ No Suolala NFTs listed right now.")
             return
 
-        # 🔥 FILTER: ONLY NFTs WITH REAL PRICE
-        priced_nfts = [
-            nft for nft in listings
-            if (nft.get("priceLamports") or nft.get("price", 0)) > 0
-        ]
-
-        if not priced_nfts:
-            await update.message.reply_text("❌ No fixed-price Suolala NFTs right now.")
-            return
-
-        nft = random.choice(priced_nfts)
+        nft = random.choice(listings)
 
         name = nft.get("title", "Suolala NFT")
         mint = nft.get("tokenMint")
 
-        price_lamports = nft.get("priceLamports") or nft.get("price")
-        price = price_lamports / 1_000_000_000
+        if not mint:
+            await update.message.reply_text("⚠️ NFT mint missing. Try again.")
+            return
 
-        # 🔥 GET IMAGE
+        # 2️⃣ Get NFT image
         token_url = f"https://api-mainnet.magiceden.dev/v2/tokens/{mint}"
         token_data = requests.get(token_url, headers=headers, timeout=15).json()
         image = token_data.get("image")
 
         if not image:
-            await update.message.reply_text("⚠️ Image missing. Try again.")
+            await update.message.reply_text("⚠️ Image not available. Try again.")
             return
+
+        # 3️⃣ Get FLOOR PRICE (ALWAYS WORKS)
+        floor_price = get_floor_price()
+
+        if floor_price:
+            price_text = f"Floor: {floor_price:.3f} SOL"
+        else:
+            price_text = "Floor price unavailable"
 
         buy_link = f"https://magiceden.io/item-details/{mint}"
 
         caption = (
-            f"🎲 **Random Priced NFT**\n\n"
+            f"🎲 **Random Suolala NFT**\n\n"
             f"🖼 **{name}**\n"
-            f"💰 **{price:.3f} SOL**\n"
+            f"💰 **{price_text}**\n"
             f"🛒 Buy on Magic Eden\n"
             f"🔗 {buy_link}"
         )
@@ -494,6 +510,7 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print("RandomNFT error:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
+
 
 
 
@@ -531,6 +548,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
