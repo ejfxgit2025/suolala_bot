@@ -382,7 +382,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{medals[i]} {name} — {count}\n"
     await update.message.reply_text(text)
 
-# ===== WELCOME =====
+# ===== WELCOME (AUTO DELETE AFTER 5 MINUTES) =====
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.new_chat_members:
         return
@@ -397,13 +397,26 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         try:
             with open("welcome.gif", "rb") as gif:
-                await update.message.reply_animation(
+                sent_msg = await update.message.reply_animation(
                     animation=gif,
                     caption=text,
                     parse_mode="Markdown"
                 )
         except:
-            await update.message.reply_text(text, parse_mode="Markdown")
+            sent_msg = await update.message.reply_text(
+                text,
+                parse_mode="Markdown"
+            )
+
+        # ⏳ wait 5 minutes (300 seconds)
+        await asyncio.sleep(300)
+
+        # 🗑️ delete welcome message
+        try:
+            await sent_msg.delete()
+        except:
+            pass
+
 
 # ===== GM / GN TASK (FIXED) =====
 async def gm_gn_task(application):
@@ -546,6 +559,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
