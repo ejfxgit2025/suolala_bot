@@ -382,6 +382,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{medals[i]} {name} — {count}\n"
     await update.message.reply_text(text)
 
+# ===== WELCOME (AUTO DELETE AFTER 5 MINUTES) =====
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.new_chat_members:
         return
@@ -412,12 +413,21 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
 
-       async def delete_later(message, delay: int):
-           await asyncio.sleep(delay)
-           try:
-              await message.delete()
-          except:
-              pass
+# ===== AUTO DELETE HELPER =====
+async def delete_later(message, delay: int):
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except:
+        pass
+
+
+
+# ===== WELCOME (AUTO DELETE AFTER 5 MINUTES) =====
+async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.new_chat_members:
+        return
+
 
 
 
@@ -564,6 +574,7 @@ app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_ne
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
