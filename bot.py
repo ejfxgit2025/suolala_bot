@@ -1,4 +1,4 @@
-import os
+    import os
 import random
 import asyncio
 import sqlite3
@@ -62,6 +62,15 @@ db.commit()
 def current_week():
     y, w, _ = datetime.utcnow().isocalendar()
     return f"{y}-W{w:02d}"
+
+# ===== DELETE HELPER =====
+async def delete_after_delay(message, delay=300):
+    """Delete a message after specified delay in seconds"""
+    await asyncio.sleep(delay)
+    try:
+        await message.delete()
+    except:
+        pass  # Message might already be deleted or bot lacks permission
 
 # ===== SAVE CHAT (FIXED) =====
 def remember_chat(update: Update):
@@ -271,15 +280,15 @@ async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
 MOTIVATIONS = [
     "🐉 SUOLALA is built by those who stay 💎",
     "💎 Holding SUOLALA means trusting your own vision 🔮",
-    "🔥 Strong hands don’t look for exits — they build 🛡️",
+    "🔥 Strong hands don't look for exits — they build 🛡️",
     "🚀 SUOLALA moves when patience beats panic ⏳",
     "🧠 Calm minds protect SUOLALA better than hype 🧘",
     "💪 If holding was easy, everyone would own SUOLALA 🐉",
     "⏰ Time rewards SUOLALA believers 💎",
     "🌊 Noise fades. SUOLALA remains 🛡️",
-    "🐲 SUOLALA doesn’t rush — it rises ⬆️",
+    "🐲 SUOLALA doesn't rush — it rises ⬆️",
     "📈 Price moves fast. Conviction lasts longer 🧠",
-    "💎 Staying is harder than buying — that’s the edge ⚔️",
+    "💎 Staying is harder than buying — that's the edge ⚔️",
     "🔥 Belief turns SUOLALA from meme to movement 🚀",
     "🛡️ Calm holders build lasting SUOLALA value 💎",
     "⏳ Staying power beats timing luck 🍀",
@@ -290,9 +299,9 @@ MOTIVATIONS = [
     "🐲 SUOLALA stands firm through noise 🔕",
     "💎 Conviction builds SUOLALA over time ⏰",
     "🧠 Emotion exits early. Discipline stays longer 🔒",
-    "🚀 SUOLALA isn’t loud — it’s persistent ⏳",
+    "🚀 SUOLALA isn't loud — it's persistent ⏳",
     "🐲 Those who stay early shape what comes later 🔮",
-    "📈 Growth rewards those who don’t rush it 🧘",
+    "📈 Growth rewards those who don't rush it 🧘",
     "💪 Holding SUOLALA is choosing conviction over comfort 🔥",
     "🔥 Real progress looks boring at first 🌱",
     "🛡️ Calm holders build lasting value 💎",
@@ -316,15 +325,15 @@ MOTIVATIONS = [
     "⏰ Time is the ally of SUOLALA holders 💎",
     "🔥 Conviction outlasts volatility in SUOLALA 🌊",
     "🧠 Strong mindset keeps SUOLALA steady 🎯",
-    "🐲 Those who wait patiently shape SUOLALA’s future 💎",
+    "🐲 Those who wait patiently shape SUOLALA's future 💎",
     "🐉 SUOLALA is built by patience, not pressure 💎",
     "💎 Those who believe early give SUOLALA its strength 🔥",
     "🚀 SUOLALA grows when holders stay focused ⏳",
     "🧠 Calm thinking keeps SUOLALA moving forward 🎯",
-    "💪 SUOLALA rewards those who don’t rush 🛡️",
+    "💪 SUOLALA rewards those who don't rush 🛡️",
     "🔥 Real support is holding, not talking 🐉",
     "⏰ Time and belief shape SUOLALA together 💎",
-    "🛡️ Strong holders protect SUOLALA’s future 🔒",
+    "🛡️ Strong holders protect SUOLALA's future 🔒",
     "🐲 SUOLALA stands firm when noise gets loud 🌊",
     "💎 Trust the process — SUOLALA is still building 🧱",
     "🚀 SUOLALA moves best with steady hands ⏳",
@@ -336,7 +345,7 @@ MOTIVATIONS = [
     "🛡️ Calm holders build lasting SUOLALA strength 💎",
     "🚀 SUOLALA is a journey, not a quick flip ⏳",
     "💎 Staying consistent builds SUOLALA confidence 🧠",
-    "🐉 Those who stay patient shape SUOLALA’s path 💎",
+    "🐉 Those who stay patient shape SUOLALA's path 💎",
 ]
 
 async def motivate(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -382,7 +391,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{medals[i]} {name} — {count}\n"
     await update.message.reply_text(text)
 
-# ===== WELCOME =====
+# ===== WELCOME (FIXED WITH AUTO DELETE) =====
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.new_chat_members:
         return
@@ -397,13 +406,18 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         try:
             with open("welcome.gif", "rb") as gif:
-                await update.message.reply_animation(
+                welcome_msg = await update.message.reply_animation(
                     animation=gif,
                     caption=text,
                     parse_mode="Markdown"
                 )
-        except:
-            await update.message.reply_text(text, parse_mode="Markdown")
+                # Schedule deletion after 5 minutes (300 seconds)
+                asyncio.create_task(delete_after_delay(welcome_msg, 300))
+        except Exception as e:
+            # If GIF fails, send text only
+            welcome_msg = await update.message.reply_text(text, parse_mode="Markdown")
+            # Schedule deletion after 5 minutes
+            asyncio.create_task(delete_after_delay(welcome_msg, 300))
 
 # ===== GM / GN TASK (FIXED) =====
 async def gm_gn_task(application):
@@ -508,11 +522,6 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("RandomNFT ERROR:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
 
-
-
-
-
-
 # ===== START BOT =====
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
 
@@ -546,16 +555,6 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
-
-
-
-
-
-
-
-
-
-
 
 
 
