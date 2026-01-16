@@ -1,4 +1,4 @@
-    import os
+import os
 import random
 import asyncio
 import sqlite3
@@ -555,6 +555,7 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
 
