@@ -382,7 +382,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{medals[i]} {name} — {count}\n"
     await update.message.reply_text(text)
 
-# ===== WELCOME (AUTO DELETE AFTER 5 MINUTES) =====
+# ===== WELCOME (AUTO DELETE AFTER 5 MINUTES – FIXED) =====
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.new_chat_members:
         return
@@ -391,7 +391,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         name = f"[{user.first_name}](tg://user?id={user.id})"
         text = (
             f"🎉 Welcome {name}!\n\n"
-            "🐉 **Welcome to 索拉拉 SUOLALA CTO**\n"
+            "🐉 Welcome to 索拉拉 SUOLALA CTO\n"
             "💎 Stay strong. Stay patient."
         )
 
@@ -408,14 +408,18 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 parse_mode="Markdown"
             )
 
-        # ⏳ wait 5 minutes (300 seconds)
-        await asyncio.sleep(300)
+        # ✅ delete later in background (NON-BLOCKING)
+        context.application.create_task(
+            delete_later(sent_msg, 300)
+        )
 
-        # 🗑️ delete welcome message
-        try:
-            await sent_msg.delete()
-        except:
-            pass
+       async def delete_later(message, delay: int):
+           await asyncio.sleep(delay)
+           try:
+              await message.delete()
+          except:
+              pass
+
 
 
 # ===== GM / GN TASK (FIXED) =====
@@ -556,9 +560,14 @@ app.add_handler(CommandHandler("motivate", motivate))
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 app.add_handler(CommandHandler("randomnft", randomnft))
+app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
+  
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
+
+
 
 
 
