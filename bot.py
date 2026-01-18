@@ -39,7 +39,7 @@ LAST_GM_DATE = None
 LAST_GN_DATE = None
 USED_MOTIVATIONS = {}
 LAST_CHECKED_TRADES = set()
-ALERT_COOLDOWN = {}  {chat_id: last_alert_time}
+ALERT_COOLDOWN = {}  # {chat_id: last_alert_time} - FIXED: Removed invalid syntax
 
 if os.path.exists(KNOWN_CHATS_FILE):
     with open(KNOWN_CHATS_FILE, "r") as f:
@@ -386,7 +386,7 @@ async def send_buy_alert(app, transaction, market_data, usd_value, token_amount)
                     
             except Exception as e:
                 error_msg = str(e).lower()
-                if "chat not found" in error_msg or "bot was blocked" in error_msg:
+                if "chat not found" in error_msg or "bot was blocked" in error_msg or "forbidden" in error_msg:
                     # Remove inactive chat
                     KNOWN_CHATS.discard(chat_id)
                     print(f"🗑️ Removed inactive chat {chat_id}")
