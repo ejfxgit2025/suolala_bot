@@ -1,11 +1,10 @@
-[file name]: bot (7) (3).py
-[file content begin]
 import os
 import random
 import asyncio
 import sqlite3
 import requests
 import json
+import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from deep_translator import GoogleTranslator
@@ -30,6 +29,10 @@ MAGICEDEN_LIST_URL = "https://api-mainnet.magiceden.dev/v2/collections/{}/listin
 
 # ===== BOT TOKEN =====
 TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    print("❌ ERROR: BOT_TOKEN environment variable is not set!")
+    print("Please set your bot token: export BOT_TOKEN='your_token_here'")
+    exit(1)
 
 # ===== TIMEZONE =====
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
@@ -229,10 +232,6 @@ def get_dexscreener_transactions():
             # Extract transaction data from HTML
             html_content = response.text
             
-            # Try to find transaction data in the HTML
-            # Look for patterns or JSON data
-            import re
-            
             # Try to find JSON data in the page
             json_pattern = r'window\.__NUXT__\s*=\s*({.*?})\s*</script>'
             matches = re.search(json_pattern, html_content, re.DOTALL)
@@ -242,66 +241,60 @@ def get_dexscreener_transactions():
                 try:
                     data = json.loads(json_data)
                     # Navigate through the JSON structure to find transactions
-                    # This structure might change, so we need to explore
-                    if 'state' in data and 'data' in data['state']:
-                        # Try different paths to find transaction data
-                        transactions = []
+                    def find_transactions(obj, path=""):
+                        if isinstance(obj, dict):
+                            for key, value in obj.items():
+                                if isinstance(value, list) and len(value) > 0:
+                                    # Check if this looks like transactions
+                                    sample = value[0]
+                                    if isinstance(sample, dict):
+                                        if 'txn' in sample or 'TXN' in sample:
+                                            return value
+                                result = find_transactions(value, f"{path}.{key}")
+                                if result:
+                                    return result
+                        elif isinstance(obj, list):
+                            for i, item in enumerate(obj):
+                                result = find_transactions(item, f"{path}[{i}]")
+                                if result:
+                                    return result
+                        return None
+                    
+                    transactions = find_transactions(data)
+                    
+                    if transactions:
+                        # Process transactions
+                        processed = []
+                        for tx in transactions[:10]:  # Get last 10
+                            if isinstance(tx, dict):
+                                # Extract transaction data
+                                txn_type = tx.get('txn') or tx.get('TXN') or ''
+                                amount = tx.get('usd') or tx.get('USD') or 0
+                                time_str = tx.get('time') or ''
+                                
+                                if txn_type and amount:
+                                    # Convert amount to float
+                                    try:
+                                        # Remove $ sign if present
+                                        if isinstance(amount, str):
+                                            amount = amount.replace('$', '').replace(',', '')
+                                            # Handle "<$0.01" case
+                                            if '<' in amount:
+                                                amount = amount.replace('<', '')
+                                        amount_float = float(amount)
+                                        
+                                        if amount_float >= MIN_BUY_AMOUNT and txn_type.upper() == 'B':
+                                            processed.append({
+                                                'type': 'buy',
+                                                'value': amount_float,
+                                                'amount': amount_float,
+                                                'time': time_str,
+                                                'source': 'dexscreener_scrape'
+                                            })
+                                    except:
+                                        pass
                         
-                        # Method 1: Look for transaction array
-                        def find_transactions(obj, path=""):
-                            if isinstance(obj, dict):
-                                for key, value in obj.items():
-                                    if isinstance(value, list) and len(value) > 0:
-                                        # Check if this looks like transactions
-                                        sample = value[0]
-                                        if isinstance(sample, dict):
-                                            if 'txn' in sample or 'TXN' in sample:
-                                                return value
-                                    result = find_transactions(value, f"{path}.{key}")
-                                    if result:
-                                        return result
-                            elif isinstance(obj, list):
-                                for i, item in enumerate(obj):
-                                    result = find_transactions(item, f"{path}[{i}]")
-                                    if result:
-                                        return result
-                            return None
-                        
-                        transactions = find_transactions(data)
-                        
-                        if transactions:
-                            # Process transactions
-                            processed = []
-                            for tx in transactions[:10]:  # Get last 10
-                                if isinstance(tx, dict):
-                                    # Extract transaction data
-                                    txn_type = tx.get('txn') or tx.get('TXN') or ''
-                                    amount = tx.get('usd') or tx.get('USD') or 0
-                                    time_str = tx.get('time') or ''
-                                    
-                                    if txn_type and amount:
-                                        # Convert amount to float
-                                        try:
-                                            # Remove $ sign if present
-                                            if isinstance(amount, str):
-                                                amount = amount.replace('$', '').replace(',', '')
-                                                # Handle "<$0.01" case
-                                                if '<' in amount:
-                                                    amount = amount.replace('<', '')
-                                            amount_float = float(amount)
-                                            
-                                            if amount_float >= MIN_BUY_AMOUNT and txn_type.upper() == 'B':
-                                                processed.append({
-                                                    'type': 'buy',
-                                                    'value': amount_float,
-                                                    'amount': amount_float,  # Will be converted to tokens later
-                                                    'time': time_str,
-                                                    'source': 'dexscreener_scrape'
-                                                })
-                                        except:
-                                            pass
-                            
-                            return processed
+                        return processed
                 
                 except json.JSONDecodeError:
                     pass
@@ -691,10 +684,29 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     
     try:
-        await context.bot.send_animation(
-            chat_id=update.effective_chat.id,
-            animation=open("buy.gif", "rb") if os.path.exists("buy.gif") else None,
-            caption=(
+        if os.path.exists("buy.gif"):
+            with open("buy.gif", "rb") as gif:
+                await context.bot.send_animation(
+                    chat_id=update.effective_chat.id,
+                    animation=gif,
+                    caption=(
+                        "╔══════════════════════════════╗\n"
+                        "        🚀 HOW TO BUY SUOLALA\n"
+                        "╚══════════════════════════════╝\n\n"
+                        "👛 ① Create a Phantom Wallet\n"
+                        "💰 ② Buy SOL & fund your wallet\n"
+                        "🪐 ③ Open Jupiter Exchange\n"
+                        "🔗 https://jup.ag\n"
+                        "📋 ④ Paste the SUOLALA Contract\n"
+                        "🔁 ⑤ Swap SOL ➜ SUOLALA\n\n"
+                        "═══════════════════════════════\n"
+                        "📜 OFFICIAL CONTRACT ADDRESS\n"
+                        "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8\n"
+                        "═══════════════════════════════"
+                    )
+                )
+        else:
+            await update.message.reply_text(
                 "╔══════════════════════════════╗\n"
                 "        🚀 HOW TO BUY SUOLALA\n"
                 "╚══════════════════════════════╝\n\n"
@@ -709,8 +721,8 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8\n"
                 "═══════════════════════════════"
             )
-        )
-    except:
+    except Exception as e:
+        print(f"Error in buy command: {e}")
         await update.message.reply_text(
             "╔══════════════════════════════╗\n"
             "        🚀 HOW TO BUY SUOLALA\n"
@@ -783,11 +795,14 @@ async def nft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        with open("nft.jpg", "rb") as photo:
-            await update.message.reply_photo(
-                photo=photo,
-                caption=caption
-            )
+        if os.path.exists("nft.jpg"):
+            with open("nft.jpg", "rb") as photo:
+                await update.message.reply_photo(
+                    photo=photo,
+                    caption=caption
+                )
+        else:
+            await update.message.reply_text(caption)
     except:
         await update.message.reply_text(caption)
 
@@ -1156,58 +1171,63 @@ async def post_init(app):
     print("✅ Alert system: ACTIVE")
 
 # ===== START BOT =====
-app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
+def main():
+    # Create the application
+    app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
+    
+    # MESSAGE TRACKER MUST BE FIRST
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
+    
+    # WELCOME
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
+    
+    # TRANSLATER
+    app.add_handler(CommandHandler("translate", translate_cmd))
+    
+    # ALL COMMANDS REGISTERED
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("price", price))
+    app.add_handler(CommandHandler("chart", chart))
+    app.add_handler(CommandHandler("market", market))
+    app.add_handler(CommandHandler("stats", stats_cmd))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("memes", memes))
+    app.add_handler(CommandHandler("stickers", stickers))
+    app.add_handler(CommandHandler("x", x))
+    app.add_handler(CommandHandler("community", community))
+    app.add_handler(CommandHandler("nft", nft))
+    app.add_handler(CommandHandler("contract", contract))
+    app.add_handler(CommandHandler("website", website))
+    app.add_handler(CommandHandler("rules", rules))
+    app.add_handler(CommandHandler("suolala", suolala))
+    app.add_handler(CommandHandler("motivate", motivate))
+    app.add_handler(CommandHandler("count", count_cmd))
+    app.add_handler(CommandHandler("top", top_cmd))
+    app.add_handler(CommandHandler("randomnft", randomnft))
+    app.add_handler(CommandHandler("latestbuy", latestbuy))
+    
+    print("=" * 50)
+    print("✅ SUOLALA BOT STARTING — AUTO ALERTS ENABLED")
+    print(f"✅ Buy Monitoring: ≥ ${MIN_BUY_AMOUNT}")
+    print(f"✅ Contract: {SUOLALA_CONTRACT}")
+    print(f"✅ Pair Address: {PAIR_ADDRESS}")
+    print(f"✅ Alert Cooldown: 10 minutes per chat")
+    print(f"✅ Check Interval: 2 minutes")
+    print("=" * 50)
+    print("📊 Using DexScreener scraping for real transaction data")
+    print("🤖 Bot will automatically send alerts for large buys")
+    print("=" * 50)
+    
+    # Test transaction scraping
+    print("🔍 Testing transaction scraping...")
+    test_transactions = get_real_transactions()
+    if test_transactions:
+        print(f"✅ Test successful: Found {len(test_transactions)} transactions")
+    else:
+        print("⚠️ No transactions found in test, but bot will continue monitoring")
+    
+    # Start the bot
+    app.run_polling()
 
-# MESSAGE TRACKER MUST BE FIRST
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
-
-# WELCOME
-app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
-
-# TRANSLATER
-app.add_handler(CommandHandler("translate", translate_cmd))
-
-# ALL COMMANDS REGISTERED
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("price", price))
-app.add_handler(CommandHandler("chart", chart))
-app.add_handler(CommandHandler("market", market))
-app.add_handler(CommandHandler("stats", stats_cmd))
-app.add_handler(CommandHandler("buy", buy))
-app.add_handler(CommandHandler("memes", memes))
-app.add_handler(CommandHandler("stickers", stickers))
-app.add_handler(CommandHandler("x", x))
-app.add_handler(CommandHandler("community", community))
-app.add_handler(CommandHandler("nft", nft))
-app.add_handler(CommandHandler("contract", contract))
-app.add_handler(CommandHandler("website", website))
-app.add_handler(CommandHandler("rules", rules))
-app.add_handler(CommandHandler("suolala", suolala))
-app.add_handler(CommandHandler("motivate", motivate))
-app.add_handler(CommandHandler("count", count_cmd))
-app.add_handler(CommandHandler("top", top_cmd))
-app.add_handler(CommandHandler("randomnft", randomnft))
-app.add_handler(CommandHandler("latestbuy", latestbuy))
-
-print("=" * 50)
-print("✅ SUOLALA BOT STARTING — AUTO ALERTS ENABLED")
-print(f"✅ Buy Monitoring: ≥ ${MIN_BUY_AMOUNT}")
-print(f"✅ Contract: {SUOLALA_CONTRACT}")
-print(f"✅ Pair Address: {PAIR_ADDRESS}")
-print(f"✅ Alert Cooldown: 10 minutes per chat")
-print(f"✅ Check Interval: 2 minutes")
-print("=" * 50)
-print("📊 Using DexScreener scraping for real transaction data")
-print("🤖 Bot will automatically send alerts for large buys")
-print("=" * 50)
-
-# Test transaction scraping
-print("🔍 Testing transaction scraping...")
-test_transactions = get_real_transactions()
-if test_transactions:
-    print(f"✅ Test successful: Found {len(test_transactions)} transactions")
-else:
-    print("⚠️ No transactions found in test, but bot will continue monitoring")
-
-app.run_polling()
-[file content end]
+if __name__ == "__main__":
+    main()
