@@ -4,7 +4,7 @@ import asyncio
 import sqlite3
 import requests
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from deep_translator import GoogleTranslator
 
@@ -19,7 +19,9 @@ from telegram.ext import (
 
 # ===== TOKEN CONFIGURATION =====
 SUOLALA_CONTRACT = "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
-DEXSCREENER_API = f"https://api.dexscreener.com/latest/dex/tokens/{SUOLALA_CONTRACT}"
+PAIR_ADDRESS = "79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
+DEXSCREENER_PAIR_API = f"https://api.dexscreener.com/latest/dex/pairs/solana/{PAIR_ADDRESS}"
+DEXSCREENER_TOKEN_API = f"https://api.dexscreener.com/latest/dex/tokens/{SUOLALA_CONTRACT}"
 MIN_BUY_AMOUNT = 100  # Minimum $ amount to trigger alert
 
 MAGICEDEN_COLLECTION = "suolala_"
@@ -31,19 +33,13 @@ TOKEN = os.getenv("BOT_TOKEN")
 # ===== TIMEZONE =====
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
 
-# ===== MEMORY (FIXED GM/GN) =====
+# ===== MEMORY =====
 KNOWN_CHATS_FILE = "known_chats.txt"
 KNOWN_CHATS = set()
 LAST_GM_DATE = None
 LAST_GN_DATE = None
 USED_MOTIVATIONS = {}
-PROCESSED_TRANSACTIONS = set()  # Track processed transactions to avoid duplicates
-PROCESSED_TRANSACTIONS_FILE = "processed_tx.txt"
-
-# Load processed transactions
-if os.path.exists(PROCESSED_TRANSACTIONS_FILE):
-    with open(PROCESSED_TRANSACTIONS_FILE, "r") as f:
-        PROCESSED_TRANSACTIONS = set(f.read().splitlines())
+LAST_CHECKED_TIME = None
 
 if os.path.exists(KNOWN_CHATS_FILE):
     with open(KNOWN_CHATS_FILE, "r") as f:
@@ -83,9 +79,9 @@ async def delete_after_delay(message, delay=300):
     try:
         await message.delete()
     except:
-        pass  # Message might already be deleted or bot lacks permission
+        pass
 
-# ===== SAVE CHAT (FIXED) =====
+# ===== SAVE CHAT =====
 def remember_chat(update: Update):
     if update and update.effective_chat:
         cid = update.effective_chat.id
@@ -153,71 +149,128 @@ async def track_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ===== TOKEN BUY MONITORING =====
 async def check_large_buys(app):
     """Background task to check for large token buys"""
+    global LAST_CHECKED_TIME
+    
     while True:
         try:
-            # Fetch token data from DexScreener
-            response = requests.get(DEXSCREENER_API, timeout=10)
+            print("🔍 Checking for large buys...")
+            
+            # Fetch pair data from DexScreener
+            response = requests.get(DEXSCREENER_PAIR_API, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
+                pair = data.get('pair', {})
                 
-                # Check if we have pairs data
-                if 'pairs' in data and len(data['pairs']) > 0:
-                    # Find the correct pair (Raydium pool)
-                    pair = None
-                    for p in data['pairs']:
-                        if 'raydium' in p.get('dexId', '').lower():
-                            pair = p
-                            break
+                if not pair:
+                    print("❌ No pair data found")
+                    await asyncio.sleep(30)
+                    continue
+                
+                # Get current price and market data
+                price_usd = float(pair.get('priceUsd', 0))
+                market_cap = float(pair.get('marketCap', 0))
+                liquidity_usd = float(pair.get('liquidity', {}).get('usd', 0))
+                
+                # Try to get transactions from different sources
+                transactions = []
+                
+                # Method 1: Check if there are transactions in the pair data
+                if 'txns' in pair and 'h24' in pair['txns']:
+                    transactions = pair['txns']['h24'].get('transactions', [])
+                    print(f"📊 Found {len(transactions)} transactions in h24 data")
+                
+                # If no transactions found, try alternative method
+                if not transactions:
+                    # Try to get recent trades from the API
+                    trades_url = f"https://api.dexscreener.com/latest/dex/pairs/solana/{PAIR_ADDRESS}/trades"
+                    trades_response = requests.get(trades_url, timeout=10)
                     
-                    # If no Raydium pair found, use first pair
-                    if not pair:
-                        pair = data['pairs'][0]
+                    if trades_response.status_code == 200:
+                        trades_data = trades_response.json()
+                        if 'trades' in trades_data:
+                            transactions = trades_data['trades']
+                            print(f"📊 Found {len(transactions)} trades in trades endpoint")
+                
+                # Process transactions
+                if transactions:
+                    # Sort by timestamp (newest first)
+                    sorted_txs = sorted(transactions, 
+                                      key=lambda x: x.get('timestamp', 0), 
+                                      reverse=True)
                     
-                    # Get transactions if available
-                    if 'txns' in pair and 'h24' in pair['txns']:
-                        transactions = pair['txns']['h24']['transactions']
-                        
-                        # Check each transaction (newest first)
-                        for tx in reversed(transactions):  # Check newest first
-                            tx_id = tx.get('txHash')
+                    # Check only the newest 10 transactions
+                    for tx in sorted_txs[:10]:
+                        tx_type = tx.get('side', '').lower()  # Some APIs use 'side' instead of 'txType'
+                        if not tx_type:
                             tx_type = tx.get('txType', '').lower()
-                            usd_value = float(tx.get('usdValue', 0))
-                            
-                            # Only process buys above threshold
-                            if (tx_type == 'buy' and 
-                                usd_value >= MIN_BUY_AMOUNT and 
-                                tx_id and tx_id not in PROCESSED_TRANSACTIONS):
+                        
+                        # Calculate USD value
+                        tx_amount = float(tx.get('amount', 0))
+                        tx_quote_amount = float(tx.get('quoteAmount', 0))
+                        
+                        # Try to get USD value directly or calculate it
+                        usd_value = float(tx.get('usdValue', 0))
+                        if usd_value == 0 and tx_quote_amount > 0:
+                            # Estimate USD value from SOL amount (rough estimate)
+                            # SOL price is approximately $100, but we need a better method
+                            sol_price = 100  # Rough estimate
+                            usd_value = tx_quote_amount * sol_price
+                        
+                        tx_hash = tx.get('txHash') or tx.get('transactionId') or tx.get('id', '')
+                        
+                        # Check if this is a buy and meets threshold
+                        if tx_type in ['buy', 'b'] and usd_value >= MIN_BUY_AMOUNT:
+                            # Check if we've processed this recently
+                            if tx_hash:
+                                # Check in memory and file
+                                processed_file = "processed_buys.txt"
+                                processed = set()
                                 
-                                print(f"✅ Detected large buy: ${usd_value:.2f} - TX: {tx_id[:10]}...")
+                                if os.path.exists(processed_file):
+                                    with open(processed_file, "r") as f:
+                                        processed = set(f.read().splitlines())
                                 
-                                # Process the buy alert
-                                await send_buy_alert(app, tx, pair)
-                                
-                                # Mark as processed
-                                PROCESSED_TRANSACTIONS.add(tx_id)
-                                with open(PROCESSED_TRANSACTIONS_FILE, "a") as f:
-                                    f.write(tx_id + "\n")
-                                break  # Only alert one per check to avoid spam
-                                
+                                if tx_hash not in processed:
+                                    print(f"✅ Detected large buy: ${usd_value:.2f} - Hash: {tx_hash[:20]}")
+                                    
+                                    # Send alert
+                                    await send_buy_alert(app, tx, pair, usd_value)
+                                    
+                                    # Mark as processed
+                                    processed.add(tx_hash)
+                                    with open(processed_file, "a") as f:
+                                        f.write(tx_hash + "\n")
+                                    
+                                    break  # Send only one alert per check
+                else:
+                    print("⚠️ No transactions found in API response")
+                    
+            else:
+                print(f"❌ API Error: {response.status_code}")
+                
         except Exception as e:
             print(f"❌ Error checking buys: {e}")
         
-        # Wait before next check (every 30 seconds)
+        # Wait before next check
         await asyncio.sleep(30)
 
-async def send_buy_alert(app, transaction, pair_data):
+async def send_buy_alert(app, transaction, pair_data, usd_value):
     """Send buy alert to all known chats"""
     try:
         # Extract transaction data
-        tx_id = transaction.get('txHash', '')
-        buyer_address = transaction.get('buyer', '')
-        token_amount = float(transaction.get('tokenAmount', 0))
-        usd_value = float(transaction.get('usdValue', 0))
+        tx_hash = transaction.get('txHash') or transaction.get('transactionId') or transaction.get('id', 'unknown')
+        buyer_address = transaction.get('buyer') or transaction.get('maker') or "Unknown"
+        
+        # Get amounts
+        token_amount = float(transaction.get('amount', 0))
         sol_amount = float(transaction.get('quoteAmount', 0))
         
         # Format buyer address
-        short_buyer = f"{buyer_address[:6]}...{buyer_address[-4:]}" if buyer_address else "Unknown"
+        if buyer_address != "Unknown" and len(buyer_address) > 10:
+            short_buyer = f"{buyer_address[:6]}...{buyer_address[-4:]}"
+        else:
+            short_buyer = buyer_address
         
         # Determine buyer category
         if usd_value >= 1000:
@@ -228,15 +281,35 @@ async def send_buy_alert(app, transaction, pair_data):
             category = "🐟 Fish ($100-$250)"
         
         # Get token price and market cap
-        token_price = float(pair_data.get('priceUsd', 0))
+        price_usd = float(pair_data.get('priceUsd', 0))
         market_cap = float(pair_data.get('marketCap', 0))
-        price_change_24h = float(pair_data.get('priceChange', {}).get('h24', 0))
+        
+        # Try to get price change
+        price_change = 0
+        if 'priceChange' in pair_data:
+            if isinstance(pair_data['priceChange'], dict):
+                price_change = float(pair_data['priceChange'].get('h24', 0))
+            else:
+                price_change = float(pair_data['priceChange'])
         
         # Format amounts
-        formatted_token_amount = "{:,.0f}".format(token_amount) if token_amount >= 1000 else "{:,.3f}".format(token_amount)
+        if token_amount >= 1000000:
+            formatted_token_amount = f"{token_amount/1000000:.2f}M"
+        elif token_amount >= 1000:
+            formatted_token_amount = f"{token_amount/1000:.2f}K"
+        else:
+            formatted_token_amount = f"{token_amount:,.0f}"
+            
         formatted_usd_value = "${:,.2f}".format(usd_value)
         formatted_sol_amount = "{:.3f}".format(sol_amount)
-        formatted_price = "${:.8f}".format(token_price) if token_price < 0.01 else "${:.6f}".format(token_price)
+        
+        if price_usd < 0.0001:
+            formatted_price = "${:.8f}".format(price_usd)
+        elif price_usd < 0.01:
+            formatted_price = "${:.6f}".format(price_usd)
+        else:
+            formatted_price = "${:.4f}".format(price_usd)
+            
         formatted_market_cap = "${:,.2f}".format(market_cap)
         
         # Create caption
@@ -248,12 +321,14 @@ async def send_buy_alert(app, transaction, pair_data):
             f"🏷️ **Buyer Category:** {category}\n\n"
             f"📊 **Price:** {formatted_price}\n"
             f"🏦 **Market Cap:** {formatted_market_cap}\n"
-            f"📈 **24h Change:** {price_change_24h:+.2f}%\n\n"
-            f"🔍 **Check on Solscan:**\n"
-            f"https://solscan.io/tx/{tx_id}\n\n"
-            "🔄 **TRADE $SUOLALA on Jupiter!**\n"
-            "https://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+            f"📈 **24h Change:** {price_change:+.2f}%\n\n"
         )
+        
+        # Add transaction link if we have hash
+        if tx_hash != "unknown" and len(tx_hash) > 10:
+            caption += f"🔍 **Check on Solscan:**\nhttps://solscan.io/tx/{tx_hash}\n\n"
+        
+        caption += "🔄 **TRADE $SUOLALA on Jupiter!**\nhttps://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
         
         # Send to all known chats
         for chat_id in KNOWN_CHATS:
@@ -269,17 +344,17 @@ async def send_buy_alert(app, transaction, pair_data):
                         )
                         print(f"✅ Buy alert sent to chat {chat_id} with buy.png")
                 else:
-                    # If no image, send as text with emoji header
-                    text_with_header = "🖼️ " + caption
+                    # If no image, send as text
                     await app.bot.send_message(
                         chat_id=chat_id,
-                        text=text_with_header,
+                        text=caption,
                         parse_mode="Markdown"
                     )
                     print(f"⚠️ Buy alert sent to chat {chat_id} (no buy.png found)")
                     
             except Exception as e:
                 print(f"❌ Failed to send buy alert to chat {chat_id}: {e}")
+                
     except Exception as e:
         print(f"❌ Error in send_buy_alert: {e}")
 
@@ -292,7 +367,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Commands:\n"
         "/price /chart /buy /memes /stickers\n"
         "/x /community /nft /contract /website /rules\n"
-        "/suolala /motivate /count /top /randomnft"
+        "/suolala /motivate /count /top /randomnft\n"
+        "/testbuy /buystats"
     )
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -313,25 +389,43 @@ async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
-
-    await context.bot.send_animation(
-        chat_id=update.effective_chat.id,
-        animation=open("buy.gif", "rb"),
-        caption=
-    "╔══════════════════════════════╗\n"
-    "        🚀 HOW TO BUY SUOLALA\n"
-    "╚══════════════════════════════╝\n\n"
-    "👛 ① Create a Phantom Wallet\n"
-    "💰 ② Buy SOL & fund your wallet\n"
-    "🪐 ③ Open Jupiter Exchange\n"
-    "🔗 https://jup.ag\n"
-    "📋 ④ Paste the SUOLALA Contract\n"
-    "🔁 ⑤ Swap SOL ➜ SUOLALA\n\n"
-    "═══════════════════════════════\n"
-    "📜 OFFICIAL CONTRACT ADDRESS\n"
-    "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8\n"
-    "═══════════════════════════════"
-    )
+    
+    try:
+        await context.bot.send_animation(
+            chat_id=update.effective_chat.id,
+            animation=open("buy.gif", "rb"),
+            caption=
+        "╔══════════════════════════════╗\n"
+        "        🚀 HOW TO BUY SUOLALA\n"
+        "╚══════════════════════════════╝\n\n"
+        "👛 ① Create a Phantom Wallet\n"
+        "💰 ② Buy SOL & fund your wallet\n"
+        "🪐 ③ Open Jupiter Exchange\n"
+        "🔗 https://jup.ag\n"
+        "📋 ④ Paste the SUOLALA Contract\n"
+        "🔁 ⑤ Swap SOL ➜ SUOLALA\n\n"
+        "═══════════════════════════════\n"
+        "📜 OFFICIAL CONTRACT ADDRESS\n"
+        "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8\n"
+        "═══════════════════════════════"
+        )
+    except:
+        await update.message.reply_text(
+        "╔══════════════════════════════╗\n"
+        "        🚀 HOW TO BUY SUOLALA\n"
+        "╚══════════════════════════════╝\n\n"
+        "👛 ① Create a Phantom Wallet\n"
+        "💰 ② Buy SOL & fund your wallet\n"
+        "🪐 ③ Open Jupiter Exchange\n"
+        "🔗 https://jup.ag\n"
+        "📋 ④ Paste the SUOLALA Contract\n"
+        "🔁 ⑤ Swap SOL ➜ SUOLALA\n\n"
+        "═══════════════════════════════\n"
+        "📜 OFFICIAL CONTRACT ADDRESS\n"
+        "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8\n"
+        "═══════════════════════════════"
+        )
+    
     await send_qr_if_exists(update, "buy")
 
 async def memes(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -387,11 +481,14 @@ async def nft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Built by builders. Alive by belief."
     )
 
-    with open("nft.jpg", "rb") as photo:
-        await update.message.reply_photo(
-            photo=photo,
-            caption=caption
-        )
+    try:
+        with open("nft.jpg", "rb") as photo:
+            await update.message.reply_photo(
+                photo=photo,
+                caption=caption
+            )
+    except:
+        await update.message.reply_text(caption)
 
 async def contract(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
@@ -417,10 +514,17 @@ async def rules(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def suolala(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     IMAGE_DIR = "girls"
-    img = random.choice([f for f in os.listdir(IMAGE_DIR) if f.lower().endswith(("jpg","png","jpeg"))])
-    await update.message.reply_photo(open(f"{IMAGE_DIR}/{img}", "rb"))
+    if os.path.exists(IMAGE_DIR):
+        images = [f for f in os.listdir(IMAGE_DIR) if f.lower().endswith(("jpg","png","jpeg"))]
+        if images:
+            img = random.choice(images)
+            await update.message.reply_photo(open(f"{IMAGE_DIR}/{img}", "rb"))
+        else:
+            await update.message.reply_text("No images found in girls directory")
+    else:
+        await update.message.reply_text("Girls directory not found")
 
-# ===== MOTIVATIONS (ALL 70) =====
+# ===== MOTIVATIONS =====
 MOTIVATIONS = [
     "🐉 SUOLALA is built by those who stay 💎",
     "💎 Holding SUOLALA means trusting your own vision 🔮",
@@ -535,7 +639,7 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{medals[i]} {name} — {count}\n"
     await update.message.reply_text(text)
 
-# ===== WELCOME (FIXED WITH AUTO DELETE) =====
+# ===== WELCOME =====
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.new_chat_members:
         return
@@ -549,21 +653,22 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
         try:
-            with open("welcome.gif", "rb") as gif:
-                welcome_msg = await update.message.reply_animation(
-                    animation=gif,
-                    caption=text,
-                    parse_mode="Markdown"
-                )
-                # Schedule deletion after 5 minutes (300 seconds)
+            if os.path.exists("welcome.gif"):
+                with open("welcome.gif", "rb") as gif:
+                    welcome_msg = await update.message.reply_animation(
+                        animation=gif,
+                        caption=text,
+                        parse_mode="Markdown"
+                    )
+                    asyncio.create_task(delete_after_delay(welcome_msg, 300))
+            else:
+                welcome_msg = await update.message.reply_text(text, parse_mode="Markdown")
                 asyncio.create_task(delete_after_delay(welcome_msg, 300))
         except Exception as e:
-            # If GIF fails, send text only
             welcome_msg = await update.message.reply_text(text, parse_mode="Markdown")
-            # Schedule deletion after 5 minutes
             asyncio.create_task(delete_after_delay(welcome_msg, 300))
 
-# ===== GM / GN TASK (FIXED) =====
+# ===== GM / GN TASK =====
 async def gm_gn_task(application):
     global LAST_GM_DATE, LAST_GN_DATE
     while True:
@@ -573,7 +678,8 @@ async def gm_gn_task(application):
         if 11 <= now.hour < 12 and LAST_GM_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(cid, open("gm.gif", "rb"))
+                    if os.path.exists("gm.gif"):
+                        await application.bot.send_animation(cid, open("gm.gif", "rb"))
                 except:
                     pass
             LAST_GM_DATE = today
@@ -581,28 +687,13 @@ async def gm_gn_task(application):
         if 23 <= now.hour < 24 and LAST_GN_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
-                    await application.bot.send_animation(cid, open("gn.gif", "rb"))
+                    if os.path.exists("gn.gif"):
+                        await application.bot.send_animation(cid, open("gn.gif", "rb"))
                 except:
                     pass
             LAST_GN_DATE = today
 
         await asyncio.sleep(60)
-
-def get_floor_price():
-    try:
-        url = f"https://api-mainnet.magiceden.dev/v2/collections/{MAGICEDEN_COLLECTION}/stats"
-        headers = {
-            "accept": "application/json",
-            "user-agent": "Mozilla/5.0"
-        }
-        data = requests.get(url, headers=headers, timeout=10).json()
-        floor_lamports = data.get("floorPrice", 0)
-        if floor_lamports:
-            return floor_lamports / 1_000_000_000
-        return None
-    except Exception as e:
-        print("Floor price error:", e)
-        return None
 
 async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
@@ -613,7 +704,6 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "user-agent": "Mozilla/5.0"
         }
 
-        # 1️⃣ Fetch listed NFTs (REAL LISTINGS)
         list_url = f"https://api-mainnet.magiceden.dev/v2/collections/{MAGICEDEN_COLLECTION}/listings?offset=0&limit=100"
         listings = requests.get(list_url, headers=headers, timeout=15).json()
 
@@ -621,18 +711,16 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ No Suolala NFTs listed right now.")
             return
 
-        # 2️⃣ Pick a random LISTED NFT
         nft = random.choice(listings)
 
         mint = nft.get("tokenMint")
         name = nft.get("title", "Suolala NFT")
-        price = nft.get("price")  # ✅ REAL PRICE (SOL)
+        price = nft.get("price")
 
         if not mint or price is None:
             await update.message.reply_text("⚠️ NFT listing incomplete. Try again.")
             return
 
-        # 3️⃣ Fetch NFT metadata (image)
         token_url = f"https://api-mainnet.magiceden.dev/v2/tokens/{mint}"
         token_data = requests.get(token_url, headers=headers, timeout=15).json()
         image = token_data.get("image")
@@ -641,7 +729,6 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("⚠️ NFT image not found.")
             return
 
-        # 4️⃣ Buy link
         buy_link = f"https://magiceden.io/item-details/{mint}"
 
         caption = (
@@ -669,13 +756,13 @@ async def testbuy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     test_caption = (
         "🚀 **TEST BUY ALERT** ✅\n\n"
-        "💰 **Bought:** 500,000 SUOLALA\n"
-        "💸 **Paid:** 0.15 SOL ≈ $150.00\n"
+        "💰 **Bought:** 102,917 SUOLALA\n"
+        "💸 **Paid:** 0.197 SOL ≈ $197.96\n"
         "👤 **Buyer:** `0xe895...f924`\n"
         "🏷️ **Buyer Category:** 🐟 Fish ($100-$250)\n\n"
-        "📊 **Price:** $0.0003\n"
-        "🏦 **Market Cap:** $600,000.00\n"
-        "📈 **24h Change:** +5.25%\n\n"
+        "📊 **Price:** $0.001923\n"
+        "🏦 **Market Cap:** $604,552.00\n"
+        "📈 **24h Change:** +1.36%\n\n"
         "🔄 **TRADE $SUOLALA on Jupiter!**\n"
         "https://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
     )
@@ -691,10 +778,51 @@ async def testbuy(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("✅ Test buy alert sent with buy.png!")
         else:
             await update.message.reply_text(
-                "❌ buy.png not found! Place buy.png in the same directory as bot.py\n\n"
-                f"Current directory: {os.getcwd()}\n"
-                f"Files in directory: {', '.join(os.listdir('.'))}"
+                "❌ buy.png not found! Place buy.png in the same directory as bot.py"
             )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
+
+# ===== BUY STATS COMMAND =====
+async def buystats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Check current pair stats"""
+    remember_chat(update)
+    
+    try:
+        response = requests.get(DEXSCREENER_PAIR_API, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            pair = data.get('pair', {})
+            
+            if pair:
+                price_usd = float(pair.get('priceUsd', 0))
+                market_cap = float(pair.get('marketCap', 0))
+                liquidity_usd = float(pair.get('liquidity', {}).get('usd', 0))
+                volume_h24 = float(pair.get('volume', {}).get('h24', 0))
+                
+                # Try to get transaction count
+                tx_count = 0
+                if 'txns' in pair and 'h24' in pair['txns']:
+                    tx_count = len(pair['txns']['h24'].get('transactions', []))
+                
+                stats_text = (
+                    "📊 **SUOLALA Pair Stats**\n\n"
+                    f"💰 **Price:** ${price_usd:.6f}\n"
+                    f"🏦 **Market Cap:** ${market_cap:,.2f}\n"
+                    f"💧 **Liquidity:** ${liquidity_usd:,.2f}\n"
+                    f"📈 **24h Volume:** ${volume_h24:,.2f}\n"
+                    f"🔄 **24h Transactions:** {tx_count}\n\n"
+                    f"🔗 **DexScreener:**\nhttps://dexscreener.com/solana/{PAIR_ADDRESS}\n\n"
+                    "🔄 **Trade on Jupiter:**\nhttps://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+                )
+                
+                await update.message.reply_text(stats_text, parse_mode="Markdown")
+            else:
+                await update.message.reply_text("❌ Could not fetch pair data")
+        else:
+            await update.message.reply_text(f"❌ API Error: {response.status_code}")
+            
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
 
@@ -706,7 +834,7 @@ async def post_init(app):
     app.create_task(check_large_buys(app))
     print("✅ All background tasks started (GM/GN + Buy Alerts)")
     print(f"✅ Monitoring SUOLALA buys ≥ ${MIN_BUY_AMOUNT}")
-    print(f"✅ Using DexScreener API: {DEXSCREENER_API}")
+    print(f"✅ Using Pair API: {DEXSCREENER_PAIR_API}")
 
 # ===== START BOT =====
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
@@ -738,12 +866,13 @@ app.add_handler(CommandHandler("motivate", motivate))
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 app.add_handler(CommandHandler("randomnft", randomnft))
-app.add_handler(CommandHandler("testbuy", testbuy))  # Test command
+app.add_handler(CommandHandler("testbuy", testbuy))
+app.add_handler(CommandHandler("buystats", buystats))
 
 print("=" * 50)
 print("✅ SUOLALA BOT STARTING — ALL FEATURES ENABLED")
 print(f"✅ Buy Monitoring: ≥ ${MIN_BUY_AMOUNT}")
 print(f"✅ Contract: {SUOLALA_CONTRACT}")
-print(f"✅ DexScreener: https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi")
+print(f"✅ Pair Address: {PAIR_ADDRESS}")
 print("=" * 50)
 app.run_polling()
