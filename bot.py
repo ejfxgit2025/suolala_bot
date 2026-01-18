@@ -1,42 +1,5 @@
-import os
-import random
-import asyncio
-import sqlite3
-import requests
-import json
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
-from deep_translator import GoogleTranslator
 
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
 )
-
-# ===== TOKEN CONFIGURATION =====
-SUOLALA_CONTRACT = "CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
-PAIR_ADDRESS = "79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
-DEXSCREENER_PAIR_API = f"https://api.dexscreener.com/latest/dex/pairs/solana/{PAIR_ADDRESS}"
-MIN_BUY_AMOUNT = 100  # Minimum $ amount to trigger alert
-
-MAGICEDEN_COLLECTION = "suolala_"
-MAGICEDEN_LIST_URL = "https://api-mainnet.magiceden.dev/v2/collections/{}/listings?offset=0&limit=100"
-
-# ===== BOT TOKEN =====
-TOKEN = os.getenv("BOT_TOKEN")
-
-# ===== TIMEZONE =====
-CHINA_TZ = ZoneInfo("Asia/Shanghai")
-
-# ===== MEMORY =====
-KNOWN_CHATS_FILE = "known_chats.txt"
-KNOWN_CHATS = set()
-LAST_GM_DATE = None
-LAST_GN_DATE = None
 USED_MOTIVATIONS = {}
 LAST_CHECKED_TRADES = set()
 
@@ -957,3 +920,4 @@ print(f"✅ Contract: {SUOLALA_CONTRACT}")
 print(f"✅ Pair Address: {PAIR_ADDRESS}")
 print("=" * 50)
 app.run_polling()
+
