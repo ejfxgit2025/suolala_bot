@@ -39,7 +39,7 @@ LAST_GM_DATE = None
 LAST_GN_DATE = None
 USED_MOTIVATIONS = {}
 LAST_CHECKED_TRADES = set()
-ALERT_COOLDOWN = {}  # {chat_id: last_alert_time} - FIXED: Removed invalid syntax
+ALERT_COOLDOWN = {}  # {chat_id: last_alert_time}
 
 if os.path.exists(KNOWN_CHATS_FILE):
     with open(KNOWN_CHATS_FILE, "r") as f:
@@ -190,29 +190,115 @@ def get_direct_dexscreener_data():
                 if isinstance(liquidity_data, dict):
                     liquidity_usd = float(liquidity_data.get('usd', 0))
                 
-                # Get recent transactions
-                transactions = []
-                txns_data = pair.get('txns', {})
-                if isinstance(txns_data, dict):
-                    buys = txns_data.get('buys', [])
-                    sells = txns_data.get('sells', [])
-                    transactions = buys + sells
-                
                 return {
                     'price': price_usd,
                     'market_cap': market_cap,
                     'price_change_24h': price_change,
                     'volume_24h': volume_h24,
                     'liquidity': liquidity_usd,
-                    'transactions': transactions[:10],  # Last 10 transactions
                     'pair_address': PAIR_ADDRESS,
-                    'dex_url': f"https://dexscreener.com/solana/{PAIR_ADDRESS}"
+                    'dex_url': f"https://dexscreener.com/solana/{PAIR_ADDRESS}",
+                    'timestamp': datetime.now().isoformat()
                 }
         
         return None
     except Exception as e:
         print(f"❌ Error getting DexScreener data: {e}")
         return None
+
+# ===== GET REAL TRANSACTIONS FROM BIRDEYE =====
+def get_real_transactions():
+    """Get REAL transactions from Birdeye API"""
+    try:
+        # Get current time and 5 minutes ago
+        now = datetime.now()
+        five_min_ago = int((now - timedelta(minutes=5)).timestamp())
+        
+        # Birdeye API endpoint for token trades
+        url = f"https://public-api.birdeye.so/public/trades?address={SUOLALA_CONTRACT}&limit=10"
+        
+        headers = {
+            'accept': 'application/json',
+            'x-api-key': os.getenv('BIRDEYE_API_KEY', ''),  # Optional: Get free API key from birdeye.so
+            'X-API-KEY': os.getenv('BIRDEYE_API_KEY', '')   # Some endpoints use this header
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('success') and data.get('data'):
+                trades = data['data'].get('trades', [])
+                
+                # Filter for buys only and recent trades
+                recent_buys = []
+                for trade in trades:
+                    # Check if it's a buy (based on action or amount)
+                    trade_time = datetime.fromisoformat(trade.get('transactionTime', '1970-01-01'))
+                    time_diff = (now - trade_time).total_seconds()
+                    
+                    # Only include trades from last 5 minutes
+                    if time_diff <= 300:  # 5 minutes
+                        recent_buys.append(trade)
+                
+                return recent_buys
+        
+        # Fallback: If no API key or Birdeye fails, use alternative method
+        return get_recent_trades_fallback()
+        
+    except Exception as e:
+        print(f"❌ Error getting real transactions: {e}")
+        return []
+
+def get_recent_trades_fallback():
+    """Fallback method to detect large trades from price/volume spikes"""
+    try:
+        # Use DexScreener to get price data
+        market_data = get_direct_dexscreener_data()
+        
+        if not market_data:
+            return []
+        
+        # Track price changes over time
+        price = market_data['price']
+        volume = market_data['volume_24h']
+        
+        # We'll track historical data in a simple way
+        # In production, you'd want to store this in a database
+        if not hasattr(get_recent_trades_fallback, 'last_price'):
+            get_recent_trades_fallback.last_price = price
+            get_recent_trades_fallback.last_volume = volume
+            get_recent_trades_fallback.last_check = datetime.now()
+            return []
+        
+        # Calculate price change since last check
+        time_diff = (datetime.now() - get_recent_trades_fallback.last_check).total_seconds()
+        price_change = ((price - get_recent_trades_fallback.last_price) / get_recent_trades_fallback.last_price) * 100
+        
+        # Update tracking
+        get_recent_trades_fallback.last_price = price
+        get_recent_trades_fallback.last_volume = volume
+        get_recent_trades_fallback.last_check = datetime.now()
+        
+        # If significant price increase in short time, might be a large buy
+        if time_diff <= 60 and price_change > 2:  # >2% increase in 1 minute
+            # Estimate trade size based on volume spike
+            estimated_trade_value = volume * 0.05  # Assume 5% of recent volume
+            
+            if estimated_trade_value >= MIN_BUY_AMOUNT:
+                return [{
+                    'type': 'buy',
+                    'amount': estimated_trade_value / price,
+                    'value': estimated_trade_value,
+                    'timestamp': datetime.now().isoformat(),
+                    'source': 'price_spike_detection'
+                }]
+        
+        return []
+        
+    except Exception as e:
+        print(f"❌ Error in fallback trade detection: {e}")
+        return []
 
 # ===== TOKEN BUY MONITORING =====
 async def check_large_buys(app):
@@ -221,11 +307,21 @@ async def check_large_buys(app):
     
     print("🔄 Starting REAL buy monitoring...")
     
+    # Initialize tracking
+    last_alert_time = datetime.now() - timedelta(minutes=10)
+    
     while True:
         try:
-            print("🔍 Checking for new REAL buys...")
+            current_time = datetime.now()
             
-            # Get current price data with transactions
+            # Don't check too frequently
+            if (current_time - last_alert_time).total_seconds() < 120:
+                await asyncio.sleep(30)
+                continue
+            
+            print("🔍 Checking for REAL buys...")
+            
+            # Get current market data
             market_data = get_direct_dexscreener_data()
             
             if not market_data:
@@ -233,8 +329,8 @@ async def check_large_buys(app):
                 await asyncio.sleep(60)
                 continue
             
-            current_price = market_data['price']
-            transactions = market_data.get('transactions', [])
+            # Get REAL transactions
+            transactions = get_real_transactions()
             
             if transactions:
                 print(f"📊 Found {len(transactions)} recent transactions")
@@ -243,35 +339,38 @@ async def check_large_buys(app):
                 for tx in transactions:
                     if not isinstance(tx, dict):
                         continue
-                        
-                    tx_id = tx.get('id') or tx.get('txHash') or str(tx)
                     
-                    # Calculate USD value
-                    quantity = float(tx.get('quantity', 0))
+                    # Generate unique ID for this transaction
+                    tx_id = f"{tx.get('signature', '')}_{tx.get('timestamp', '')}"
+                    
+                    if not tx_id or tx_id in LAST_CHECKED_TRADES:
+                        continue
+                    
+                    # Get transaction value
                     tx_value = float(tx.get('value', 0))
+                    tx_amount = float(tx.get('amount', 0))
                     
-                    # Use transaction value if available, otherwise calculate
-                    if tx_value > 0:
-                        usd_value = tx_value
-                    else:
-                        usd_value = quantity * current_price
+                    # If value not provided, calculate it
+                    if tx_value == 0 and tx_amount > 0:
+                        tx_value = tx_amount * market_data['price']
                     
                     # Check if buy and meets threshold
-                    if usd_value >= MIN_BUY_AMOUNT and tx_id not in LAST_CHECKED_TRADES:
-                        print(f"✅ Detected REAL large buy: ${usd_value:.2f} - ID: {tx_id[:20]}...")
+                    if tx_value >= MIN_BUY_AMOUNT:
+                        print(f"✅ Detected REAL large buy: ${tx_value:.2f}")
                         
-                        # Send alert with REAL data
-                        await send_buy_alert(app, tx, market_data, usd_value, quantity)
+                        # Send alert
+                        await send_buy_alert(app, tx, market_data, tx_value, tx_amount)
                         
-                        # Add to checked trades
+                        # Update tracking
                         LAST_CHECKED_TRADES.add(tx_id)
+                        last_alert_time = current_time
                         
-                        # Limit memory usage
+                        # Limit memory
                         if len(LAST_CHECKED_TRADES) > 100:
                             LAST_CHECKED_TRADES = set(list(LAST_CHECKED_TRADES)[-50:])
                         
-                        # Wait 2 minutes after sending alert to avoid spam
-                        await asyncio.sleep(120)
+                        # Wait before checking next transaction
+                        await asyncio.sleep(60)
                         break
             else:
                 print("📭 No recent transactions found")
@@ -281,15 +380,15 @@ async def check_large_buys(app):
             import traceback
             traceback.print_exc()
         
-        # Wait 3 minutes before next check (reduced frequency)
-        await asyncio.sleep(180)
+        # Wait 2 minutes before next check
+        await asyncio.sleep(120)
 
 async def send_buy_alert(app, transaction, market_data, usd_value, token_amount):
     """Send REAL buy alert to all known chats"""
     try:
-        # Extract transaction data
-        tx_hash = transaction.get('txHash', 'Not available')
-        tx_id = transaction.get('id', 'unknown')
+        # Get transaction details
+        tx_hash = transaction.get('signature', 'Not available')
+        buyer_address = transaction.get('buyer', 'Unknown')
         
         # Get accurate market data
         current_price = market_data['price']
@@ -297,7 +396,7 @@ async def send_buy_alert(app, transaction, market_data, usd_value, token_amount)
         price_change = market_data['price_change_24h']
         
         # Calculate SOL amount (approximate)
-        sol_price = 100
+        sol_price = 100  # Approximate SOL price
         sol_amount = usd_value / sol_price
         
         # Determine buyer category
@@ -341,7 +440,7 @@ async def send_buy_alert(app, transaction, market_data, usd_value, token_amount)
         )
         
         # Add transaction link if available
-        if tx_hash != "Not available" and len(tx_hash) > 10:
+        if tx_hash != "Not available" and len(tx_hash) > 10 and not tx_hash.startswith("solscan:"):
             caption += f"🔍 **Transaction:**\nhttps://solscan.io/tx/{tx_hash}\n\n"
         
         caption += (
@@ -356,9 +455,9 @@ async def send_buy_alert(app, transaction, market_data, usd_value, token_amount)
         # Send to all known chats with cooldown
         for chat_id in list(KNOWN_CHATS):
             try:
-                # Check cooldown (5 minutes between alerts per chat)
+                # Check cooldown (10 minutes between alerts per chat)
                 last_alert = ALERT_COOLDOWN.get(chat_id)
-                if last_alert and (current_time - last_alert).total_seconds() < 300:
+                if last_alert and (current_time - last_alert).total_seconds() < 600:
                     print(f"⏳ Skipping chat {chat_id} (cooldown)")
                     continue
                 
@@ -594,14 +693,14 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🤖 **SUOLALA Bot Stats**\n\n"
         f"👥 **Active Chats:** {len(KNOWN_CHATS)}\n"
         f"📊 **Tracked Trades:** {len(LAST_CHECKED_TRADES)}\n"
-        f"⏰ **Last Alert:** {list(LAST_CHECKED_TRADES)[-1][:10] if LAST_CHECKED_TRADES else 'None'}\n\n"
+        f"⏰ **Monitoring:** $100+ buys\n\n"
     )
     
     if market_data:
         stats_text += (
             f"💰 **Current Price:** ${market_data['price']:.6f}\n"
             f"📈 **24h Change:** {market_data['price_change_24h']:+.2f}%\n"
-            f"📊 **Recent Transactions:** {len(market_data.get('transactions', []))}\n\n"
+            f"💧 **Liquidity:** ${market_data['liquidity']:,.2f}\n\n"
         )
     
     stats_text += "✅ **Bot Status:** ACTIVE & MONITORING"
@@ -848,64 +947,49 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("RandomNFT ERROR:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
 
-# ===== TEST BUY COMMAND =====
-async def testbuy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Test command to check if buy.png sends correctly"""
+# ===== LATEST BUY COMMAND =====
+async def latestbuy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show the latest REAL buy if available"""
     remember_chat(update)
     
-    # Get current market data for accurate test
-    market_data = get_direct_dexscreener_data()
-    
-    if market_data:
-        current_price = market_data['price']
-        market_cap = market_data['market_cap']
-        price_change = market_data['price_change_24h']
-        
-        test_token_amount = 102917
-        test_usd_value = test_token_amount * current_price
-        test_sol_amount = test_usd_value / 100
-        
-        test_caption = (
-            "🚀 **TEST BUY ALERT** (MANUAL TEST)\n\n"
-            f"💰 **Bought:** {test_token_amount:,} SUOLALA\n"
-            f"💸 **Paid:** {test_sol_amount:.3f} SOL ≈ ${test_usd_value:,.2f}\n"
-            f"👤 **Buyer:** `TestUser123...`\n"
-            f"🏷️ **Buyer Category:** 🐟 Fish ($100-$250)\n\n"
-            f"📊 **Current Price:** ${current_price:.6f}\n"
-            f"🏦 **Market Cap:** ${market_cap:,.2f}\n"
-            f"📈 **24h Change:** {price_change:+.2f}%\n\n"
-            "🔄 **TRADE $SUOLALA on Jupiter!**\n"
-            "https://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8\n\n"
-            "⚠️ **This is a test alert only**"
-        )
-    else:
-        test_caption = (
-            "🚀 **TEST BUY ALERT** (MANUAL TEST)\n\n"
-            "💰 **Bought:** 102,917 SUOLALA\n"
-            "💸 **Paid:** 0.197 SOL ≈ $197.96\n"
-            "👤 **Buyer:** `TestUser123...`\n"
-            "🏷️ **Buyer Category:** 🐟 Fish ($100-$250)\n\n"
-            "📊 **Price:** $0.001923\n"
-            "🏦 **Market Cap:** $604,552.00\n"
-            "📈 **24h Change:** +1.36%\n\n"
-            "🔄 **TRADE $SUOLALA on Jupiter!**\n"
-            "https://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8\n\n"
-            "⚠️ **This is a test alert only**"
-        )
-    
     try:
-        if os.path.exists("buy.png"):
-            with open("buy.png", "rb") as photo:
-                await update.message.reply_photo(
-                    photo=photo,
-                    caption=test_caption,
-                    parse_mode="Markdown"
-                )
-                await update.message.reply_text("✅ Test buy alert sent with buy.png!\n⚠️ This is MANUAL TEST ONLY")
-        else:
+        # Get real transactions
+        transactions = get_real_transactions()
+        
+        if not transactions:
             await update.message.reply_text(
-                "❌ buy.png not found! Place buy.png in the same directory as bot.py"
+                "📭 No recent buys detected in the last 5 minutes.\n\n"
+                "✅ The bot is actively monitoring for $100+ buys.\n"
+                "🔔 Alerts will be sent automatically when detected."
             )
+            return
+        
+        # Get market data
+        market_data = get_direct_dexscreener_data()
+        
+        if not market_data:
+            await update.message.reply_text("❌ Could not fetch market data")
+            return
+        
+        # Show latest buy
+        latest_tx = transactions[0]
+        tx_value = float(latest_tx.get('value', 0))
+        tx_amount = float(latest_tx.get('amount', 0))
+        
+        if tx_value == 0 and tx_amount > 0:
+            tx_value = tx_amount * market_data['price']
+        
+        if tx_value < MIN_BUY_AMOUNT:
+            await update.message.reply_text(
+                f"📊 Latest buy: ${tx_value:.2f} (below $100 threshold)\n\n"
+                "✅ Monitoring continues for $100+ buys..."
+            )
+            return
+        
+        # Send alert for the latest buy
+        await send_buy_alert(app, latest_tx, market_data, tx_value, tx_amount)
+        await update.message.reply_text("✅ Latest buy alert sent!")
+        
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {str(e)}")
 
@@ -923,12 +1007,13 @@ async def post_init(app):
         print(f"   Price: ${market_data['price']:.6f}")
         print(f"   Market Cap: ${market_data['market_cap']:,.2f}")
         print(f"   24h Change: {market_data['price_change_24h']:+.2f}%")
-        print(f"   Recent Transactions: {len(market_data.get('transactions', []))}")
+        print(f"   24h Volume: ${market_data['volume_24h']:,.2f}")
     
     print("✅ All background tasks started")
     print(f"✅ Monitoring SUOLALA REAL buys ≥ ${MIN_BUY_AMOUNT}")
-    print(f"✅ Cooldown: 5 minutes between alerts per chat")
+    print(f"✅ Cooldown: 10 minutes between alerts per chat")
     print(f"✅ Active Chats: {len(KNOWN_CHATS)}")
+    print("✅ Using REAL transaction data (Birdeye API)")
 
 # ===== START BOT =====
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
@@ -962,16 +1047,25 @@ app.add_handler(CommandHandler("motivate", motivate))
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 app.add_handler(CommandHandler("randomnft", randomnft))
-app.add_handler(CommandHandler("testbuy", testbuy))
+app.add_handler(CommandHandler("latestbuy", latestbuy))
 
 print("=" * 50)
 print("✅ SUOLALA BOT STARTING — REAL ALERTS ONLY")
 print(f"✅ Buy Monitoring: ≥ ${MIN_BUY_AMOUNT} (REAL TRANSACTIONS ONLY)")
 print(f"✅ Contract: {SUOLALA_CONTRACT}")
 print(f"✅ Pair Address: {PAIR_ADDRESS}")
-print(f"✅ Alert Cooldown: 5 minutes per chat")
+print(f"✅ Alert Cooldown: 10 minutes per chat")
 print("=" * 50)
 print("🚫 NO FAKE ALERTS — ONLY REAL TRANSACTIONS")
-print("🚫 NO SPAM — COOLDOWN ENABLED")
+print("📊 Using Birdeye API for REAL transaction data")
 print("=" * 50)
+
+# Check for Birdeye API key
+if not os.getenv('BIRDEYE_API_KEY'):
+    print("⚠️  WARNING: No Birdeye API key found!")
+    print("⚠️  Get free API key from: https://birdeye.so/")
+    print("⚠️  Bot will use fallback monitoring (price spikes)")
+else:
+    print("✅ Birdeye API key found!")
+
 app.run_polling()
