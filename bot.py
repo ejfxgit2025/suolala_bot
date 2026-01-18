@@ -3,8 +3,9 @@ import random
 import asyncio
 import sqlite3
 import requests
-import aiohttp
 import json
+import threading
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from deep_translator import GoogleTranslator
@@ -156,40 +157,40 @@ async def check_large_buys(app):
     """Background task to check for large token buys"""
     while True:
         try:
-            # Fetch token data from DexScreener
-            async with aiohttp.ClientSession() as session:
-                async with session.get(DEXSCREENER_API) as response:
-                    if response.status == 200:
-                        data = await response.json()
+            # Fetch token data from DexScreener using requests (no aiohttp)
+            response = requests.get(DEXSCREENER_API, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Check if we have pairs data
+                if 'pairs' in data and len(data['pairs']) > 0:
+                    pair = data['pairs'][0]
+                    
+                    # Get transactions if available
+                    if 'txns' in pair and 'h24' in pair['txns']:
+                        transactions = pair['txns']['h24']['transactions']
                         
-                        # Check if we have pairs data
-                        if 'pairs' in data and len(data['pairs']) > 0:
-                            pair = data['pairs'][0]
+                        # Check each transaction
+                        for tx in transactions:
+                            tx_id = tx.get('txHash')
+                            tx_type = tx.get('txType', '').lower()
+                            usd_value = tx.get('usdValue', 0)
                             
-                            # Get transactions if available
-                            if 'txns' in pair and 'h24' in pair['txns']:
-                                transactions = pair['txns']['h24']['transactions']
+                            # Only process buys above threshold
+                            if (tx_type == 'buy' and 
+                                usd_value >= MIN_BUY_AMOUNT and 
+                                tx_id not in PROCESSED_TRANSACTIONS):
                                 
-                                # Check each transaction
-                                for tx in transactions:
-                                    tx_id = tx.get('txHash')
-                                    tx_type = tx.get('txType', '').lower()
-                                    usd_value = tx.get('usdValue', 0)
-                                    
-                                    # Only process buys above threshold
-                                    if (tx_type == 'buy' and 
-                                        usd_value >= MIN_BUY_AMOUNT and 
-                                        tx_id not in PROCESSED_TRANSACTIONS):
-                                        
-                                        # Process the buy alert
-                                        await send_buy_alert(app, tx, pair)
-                                        
-                                        # Mark as processed
-                                        PROCESSED_TRANSACTIONS.add(tx_id)
-                                        with open(PROCESSED_TRANSACTIONS_FILE, "a") as f:
-                                            f.write(tx_id + "\n")
-                                        break  # Only alert one per check to avoid spam
-                                        
+                                # Process the buy alert
+                                await send_buy_alert(app, tx, pair)
+                                
+                                # Mark as processed
+                                PROCESSED_TRANSACTIONS.add(tx_id)
+                                with open(PROCESSED_TRANSACTIONS_FILE, "a") as f:
+                                    f.write(tx_id + "\n")
+                                break  # Only alert one per check to avoid spam
+                                
         except Exception as e:
             print(f"Error checking buys: {e}")
         
@@ -336,7 +337,6 @@ async def x(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🐦 X\nhttps://x.com/suolalax")
     await send_qr_if_exists(update, "x")
 
-
 async def community(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     await update.message.reply_text(
@@ -383,7 +383,6 @@ async def contract(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📜 Contract\nCY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
     )
     await send_qr_if_exists(update, "contract")
-
 
 async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
@@ -588,7 +587,6 @@ def get_floor_price():
     except Exception as e:
         print("Floor price error:", e)
         return None
-
 
 async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
