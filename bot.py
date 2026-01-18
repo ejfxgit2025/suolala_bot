@@ -4,8 +4,6 @@ import asyncio
 import sqlite3
 import requests
 import json
-import threading
-import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from deep_translator import GoogleTranslator
@@ -157,7 +155,7 @@ async def check_large_buys(app):
     """Background task to check for large token buys"""
     while True:
         try:
-            # Fetch token data from DexScreener using requests (no aiohttp)
+            # Fetch token data from DexScreener
             response = requests.get(DEXSCREENER_API, timeout=10)
             
             if response.status_code == 200:
@@ -165,22 +163,33 @@ async def check_large_buys(app):
                 
                 # Check if we have pairs data
                 if 'pairs' in data and len(data['pairs']) > 0:
-                    pair = data['pairs'][0]
+                    # Find the correct pair (Raydium pool)
+                    pair = None
+                    for p in data['pairs']:
+                        if 'raydium' in p.get('dexId', '').lower():
+                            pair = p
+                            break
+                    
+                    # If no Raydium pair found, use first pair
+                    if not pair:
+                        pair = data['pairs'][0]
                     
                     # Get transactions if available
                     if 'txns' in pair and 'h24' in pair['txns']:
                         transactions = pair['txns']['h24']['transactions']
                         
-                        # Check each transaction
-                        for tx in transactions:
+                        # Check each transaction (newest first)
+                        for tx in reversed(transactions):  # Check newest first
                             tx_id = tx.get('txHash')
                             tx_type = tx.get('txType', '').lower()
-                            usd_value = tx.get('usdValue', 0)
+                            usd_value = float(tx.get('usdValue', 0))
                             
                             # Only process buys above threshold
                             if (tx_type == 'buy' and 
                                 usd_value >= MIN_BUY_AMOUNT and 
-                                tx_id not in PROCESSED_TRANSACTIONS):
+                                tx_id and tx_id not in PROCESSED_TRANSACTIONS):
+                                
+                                print(f"✅ Detected large buy: ${usd_value:.2f} - TX: {tx_id[:10]}...")
                                 
                                 # Process the buy alert
                                 await send_buy_alert(app, tx, pair)
@@ -192,80 +201,87 @@ async def check_large_buys(app):
                                 break  # Only alert one per check to avoid spam
                                 
         except Exception as e:
-            print(f"Error checking buys: {e}")
+            print(f"❌ Error checking buys: {e}")
         
-        # Wait before next check (every 60 seconds)
-        await asyncio.sleep(60)
+        # Wait before next check (every 30 seconds)
+        await asyncio.sleep(30)
 
 async def send_buy_alert(app, transaction, pair_data):
     """Send buy alert to all known chats"""
-    # Extract transaction data
-    tx_id = transaction.get('txHash', '')
-    buyer_address = transaction.get('buyer', '')
-    token_amount = transaction.get('tokenAmount', 0)
-    usd_value = transaction.get('usdValue', 0)
-    sol_amount = transaction.get('quoteAmount', 0)
-    
-    # Format buyer address
-    short_buyer = f"{buyer_address[:6]}...{buyer_address[-4:]}" if buyer_address else "Unknown"
-    
-    # Determine buyer category
-    if usd_value >= 1000:
-        category = "🐋 Whale ($1,000+)"
-    elif usd_value >= 250:
-        category = "🦈 Shark ($250-$1,000)"
-    else:
-        category = "🐟 Fish ($100-$250)"
-    
-    # Get token price and market cap
-    token_price = float(pair_data.get('priceUsd', 0))
-    market_cap = float(pair_data.get('marketCap', 0))
-    price_change_24h = float(pair_data.get('priceChange', {}).get('h24', 0))
-    
-    # Format amounts
-    formatted_token_amount = "{:,.3f}".format(float(token_amount))
-    formatted_usd_value = "${:,.2f}".format(float(usd_value))
-    formatted_sol_amount = "{:.3f}".format(float(sol_amount))
-    formatted_price = "${:.8f}".format(token_price) if token_price < 0.01 else "${:.4f}".format(token_price)
-    formatted_market_cap = "${:,.2f}".format(market_cap)
-    
-    # Create caption
-    caption = (
-        "🚀 SUOLALA / SOL BUY ALERT ✅\n\n"
-        f"💰 **Bought:** {formatted_token_amount} SUOLALA\n"
-        f"💸 **Paid:** {formatted_sol_amount} SOL ≈ {formatted_usd_value}\n"
-        f"👤 **Buyer:** {short_buyer}\n"
-        f"🏷️ **Buyer Category:** {category}\n\n"
-        f"📊 **Price:** {formatted_price}\n"
-        f"🏦 **Market Cap:** {formatted_market_cap}\n"
-        f"📈 **24h Change:** {price_change_24h:.2f}%\n\n"
-        f"🔍 **Check on Solscan:**\n"
-        f"https://solscan.io/tx/{tx_id}\n\n"
-        "🔄 **TRADE $SUOLALA on Jupiter!**\n"
-        "https://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
-    )
-    
-    # Send to all known chats
-    for chat_id in KNOWN_CHATS:
-        try:
-            # Try to send with image first
-            if os.path.exists("buy.png"):
-                with open("buy.png", "rb") as photo:
-                    await app.bot.send_photo(
+    try:
+        # Extract transaction data
+        tx_id = transaction.get('txHash', '')
+        buyer_address = transaction.get('buyer', '')
+        token_amount = float(transaction.get('tokenAmount', 0))
+        usd_value = float(transaction.get('usdValue', 0))
+        sol_amount = float(transaction.get('quoteAmount', 0))
+        
+        # Format buyer address
+        short_buyer = f"{buyer_address[:6]}...{buyer_address[-4:]}" if buyer_address else "Unknown"
+        
+        # Determine buyer category
+        if usd_value >= 1000:
+            category = "🐋 Whale ($1,000+)"
+        elif usd_value >= 250:
+            category = "🦈 Shark ($250-$1,000)"
+        else:
+            category = "🐟 Fish ($100-$250)"
+        
+        # Get token price and market cap
+        token_price = float(pair_data.get('priceUsd', 0))
+        market_cap = float(pair_data.get('marketCap', 0))
+        price_change_24h = float(pair_data.get('priceChange', {}).get('h24', 0))
+        
+        # Format amounts
+        formatted_token_amount = "{:,.0f}".format(token_amount) if token_amount >= 1000 else "{:,.3f}".format(token_amount)
+        formatted_usd_value = "${:,.2f}".format(usd_value)
+        formatted_sol_amount = "{:.3f}".format(sol_amount)
+        formatted_price = "${:.8f}".format(token_price) if token_price < 0.01 else "${:.6f}".format(token_price)
+        formatted_market_cap = "${:,.2f}".format(market_cap)
+        
+        # Create caption
+        caption = (
+            "🚀 **SUOLALA / SOL BUY ALERT** ✅\n\n"
+            f"💰 **Bought:** {formatted_token_amount} SUOLALA\n"
+            f"💸 **Paid:** {formatted_sol_amount} SOL ≈ {formatted_usd_value}\n"
+            f"👤 **Buyer:** `{short_buyer}`\n"
+            f"🏷️ **Buyer Category:** {category}\n\n"
+            f"📊 **Price:** {formatted_price}\n"
+            f"🏦 **Market Cap:** {formatted_market_cap}\n"
+            f"📈 **24h Change:** {price_change_24h:+.2f}%\n\n"
+            f"🔍 **Check on Solscan:**\n"
+            f"https://solscan.io/tx/{tx_id}\n\n"
+            "🔄 **TRADE $SUOLALA on Jupiter!**\n"
+            "https://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+        )
+        
+        # Send to all known chats
+        for chat_id in KNOWN_CHATS:
+            try:
+                # Try to send with image first
+                if os.path.exists("buy.png"):
+                    with open("buy.png", "rb") as photo:
+                        await app.bot.send_photo(
+                            chat_id=chat_id,
+                            photo=photo,
+                            caption=caption,
+                            parse_mode="Markdown"
+                        )
+                        print(f"✅ Buy alert sent to chat {chat_id} with buy.png")
+                else:
+                    # If no image, send as text with emoji header
+                    text_with_header = "🖼️ " + caption
+                    await app.bot.send_message(
                         chat_id=chat_id,
-                        photo=photo,
-                        caption=caption,
+                        text=text_with_header,
                         parse_mode="Markdown"
                     )
-            else:
-                # Fallback to text only
-                await app.bot.send_message(
-                    chat_id=chat_id,
-                    text=caption,
-                    parse_mode="Markdown"
-                )
-        except Exception as e:
-            print(f"Failed to send buy alert to chat {chat_id}: {e}")
+                    print(f"⚠️ Buy alert sent to chat {chat_id} (no buy.png found)")
+                    
+            except Exception as e:
+                print(f"❌ Failed to send buy alert to chat {chat_id}: {e}")
+    except Exception as e:
+        print(f"❌ Error in send_buy_alert: {e}")
 
 # ===== BASIC COMMANDS =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -283,7 +299,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     await update.message.reply_text(
         "💰 SUOLALA Price\n"
-        "https://dexscreener.com/solana/79Qaq5b1JfC8bBuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
+        "https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
     )
     await send_qr_if_exists(update, "price")
 
@@ -291,7 +307,7 @@ async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     await update.message.reply_text(
         "📈 SUOLALA Chart\n"
-        "https://dexscreener.com/solana/79Qaq5b1JfC8bBuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
+        "https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
     )
     await send_qr_if_exists(update, "chart")
 
@@ -646,6 +662,42 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("RandomNFT ERROR:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
 
+# ===== TEST BUY COMMAND =====
+async def testbuy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Test command to check if buy.png sends correctly"""
+    remember_chat(update)
+    
+    test_caption = (
+        "🚀 **TEST BUY ALERT** ✅\n\n"
+        "💰 **Bought:** 500,000 SUOLALA\n"
+        "💸 **Paid:** 0.15 SOL ≈ $150.00\n"
+        "👤 **Buyer:** `0xe895...f924`\n"
+        "🏷️ **Buyer Category:** 🐟 Fish ($100-$250)\n\n"
+        "📊 **Price:** $0.0003\n"
+        "🏦 **Market Cap:** $600,000.00\n"
+        "📈 **24h Change:** +5.25%\n\n"
+        "🔄 **TRADE $SUOLALA on Jupiter!**\n"
+        "https://jup.ag/swap/SOL-CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+    )
+    
+    try:
+        if os.path.exists("buy.png"):
+            with open("buy.png", "rb") as photo:
+                await update.message.reply_photo(
+                    photo=photo,
+                    caption=test_caption,
+                    parse_mode="Markdown"
+                )
+                await update.message.reply_text("✅ Test buy alert sent with buy.png!")
+        else:
+            await update.message.reply_text(
+                "❌ buy.png not found! Place buy.png in the same directory as bot.py\n\n"
+                f"Current directory: {os.getcwd()}\n"
+                f"Files in directory: {', '.join(os.listdir('.'))}"
+            )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {str(e)}")
+
 # ===== POST INITIALIZATION =====
 async def post_init(app):
     # Start the GM/GN task
@@ -653,6 +705,8 @@ async def post_init(app):
     # Start the buy monitoring task
     app.create_task(check_large_buys(app))
     print("✅ All background tasks started (GM/GN + Buy Alerts)")
+    print(f"✅ Monitoring SUOLALA buys ≥ ${MIN_BUY_AMOUNT}")
+    print(f"✅ Using DexScreener API: {DEXSCREENER_API}")
 
 # ===== START BOT =====
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
@@ -684,6 +738,12 @@ app.add_handler(CommandHandler("motivate", motivate))
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 app.add_handler(CommandHandler("randomnft", randomnft))
+app.add_handler(CommandHandler("testbuy", testbuy))  # Test command
 
-print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
+print("=" * 50)
+print("✅ SUOLALA BOT STARTING — ALL FEATURES ENABLED")
+print(f"✅ Buy Monitoring: ≥ ${MIN_BUY_AMOUNT}")
+print(f"✅ Contract: {SUOLALA_CONTRACT}")
+print(f"✅ DexScreener: https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi")
+print("=" * 50)
 app.run_polling()
