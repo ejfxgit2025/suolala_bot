@@ -264,7 +264,7 @@ async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_qr_if_exists(update, "website")
 
 # ===== NEWWEB COMMAND =====
-async def newweb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     
     # Check if newweb.png exists
@@ -573,4 +573,5 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
