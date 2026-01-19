@@ -145,8 +145,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Official Solana China meme coin 🇨🇳🔥\n\n"
         "Commands:\n"
         "/price /chart /buy /memes /stickers\n"
-        "/x /community /nft /contract /website /rules /newweb\n"
-        "/suolala /motivate /count /top"
+        "/x /community /nft /contract /website /rules\n"
+        "/suolala /motivate /count /top /randomnft"
     )
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -255,16 +255,7 @@ async def contract(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await send_qr_if_exists(update, "contract")
 
-
 async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    remember_chat(update)
-    await update.message.reply_text(
-        "🌐 Website\nhttps://trends.fun/token/CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
-    )
-    await send_qr_if_exists(update, "website")
-
-# ===== NEWWEB COMMAND =====
-async def newweb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
     
     # Check if newweb.png exists
@@ -539,11 +530,46 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("RandomNFT ERROR:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
 
+# ===== AUTOMATIC MESSAGE =====
+async def automatic_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Automatically send messages based on keywords"""
+    if not update.message or update.message.from_user.is_bot:
+        return
+    
+    text = update.message.text.lower() if update.message.text else ""
+    
+    # Keywords to trigger automatic responses
+    keywords_responses = {
+        "suolala": ["🐉 SUOLALA to the moon! 🚀", "💎 Strong SUOLALA community! 🔥"],
+        "website": "🌐 Check our website: https://suolala.netlify.app/",
+        "contract": "📜 Contract: CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8",
+        "buy": "🛒 How to buy: /buy",
+        "price": "💰 Check price: /price",
+        "nft": "🎨 NFTs: /nft",
+        "motivation": "💪 Need motivation? /motivate",
+    }
+    
+    # Check for keywords and respond
+    for keyword, response in keywords_responses.items():
+        if keyword in text:
+            if isinstance(response, list):
+                response_text = random.choice(response)
+            else:
+                response_text = response
+            
+            # Send the response and schedule deletion after 1 minute
+            sent_msg = await update.message.reply_text(response_text)
+            asyncio.create_task(delete_after_delay(sent_msg, 60))
+            break
+
 # ===== START BOT =====
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
 
 # MESSAGE TRACKER MUST BE FIRST
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
+
+# AUTOMATIC MESSAGE HANDLER
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, automatic_message))
 
 # WELCOME
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
@@ -551,7 +577,7 @@ app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_ne
 # TRANSLATER
 app.add_handler(CommandHandler("translate", translate_cmd))
 
-# ALL COMMANDS REGISTERED (UNCHANGED)
+# ALL COMMANDS REGISTERED
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("price", price))
 app.add_handler(CommandHandler("chart", chart))
@@ -563,7 +589,6 @@ app.add_handler(CommandHandler("community", community))
 app.add_handler(CommandHandler("nft", nft))
 app.add_handler(CommandHandler("contract", contract))
 app.add_handler(CommandHandler("website", website))
-app.add_handler(CommandHandler("newweb", newweb))
 app.add_handler(CommandHandler("rules", rules))
 app.add_handler(CommandHandler("suolala", suolala))
 app.add_handler(CommandHandler("motivate", motivate))
