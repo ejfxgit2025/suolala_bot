@@ -256,13 +256,6 @@ async def contract(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_qr_if_exists(update, "contract")
 
 
-async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    remember_chat(update)
-    await update.message.reply_text(
-        "🌐 Website\nhttps://trends.fun/token/CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
-    )
-    await send_qr_if_exists(update, "website")
-
 # ===== NEWWEB COMMAND =====
 async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remember_chat(update)
@@ -573,5 +566,6 @@ app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
 app.run_polling()
+
 
 
