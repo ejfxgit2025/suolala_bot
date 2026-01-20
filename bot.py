@@ -400,41 +400,61 @@ async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{medals[i]} {name} — {count}\n"
     await update.message.reply_text(text)
 
-# ===== WELCOME (FIXED WITH AUTO DELETE) =====
+# ===== WELCOME (FIXED) =====
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.new_chat_members:
         return
 
+    # Remember this chat
+    remember_chat(update)
+    
+    chat_id = update.effective_chat.id
+    
     for user in update.message.new_chat_members:
         if user.is_bot:  # Skip if the new member is a bot
             continue
             
-        name = f"[{user.first_name}](tg://user?id={user.id})"
+        name = user.first_name
+        mention = f"[{name}](tg://user?id={user.id})"
         text = (
-            f"🎉 Welcome {name}!\n\n"
+            f"🎉 Welcome {mention}!\n\n"
             "🐉 **Welcome to 索拉拉 SUOLALA CTO**\n"
             "💎 Stay strong. Stay patient."
         )
 
         try:
-            # Try to send animation first
-            with open("welcome.gif", "rb") as gif:
-                welcome_msg = await update.message.reply_animation(
-                    animation=gif,
-                    caption=text,
+            # First try to send animation if welcome.gif exists
+            if os.path.exists("welcome.gif"):
+                with open("welcome.gif", "rb") as gif:
+                    welcome_msg = await context.bot.send_animation(
+                        chat_id=chat_id,
+                        animation=gif,
+                        caption=text,
+                        parse_mode="Markdown"
+                    )
+                    # Schedule deletion after 5 minutes (300 seconds)
+                    asyncio.create_task(delete_after_delay(welcome_msg, 300))
+            else:
+                # If no GIF, send text message
+                welcome_msg = await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=text,
                     parse_mode="Markdown"
                 )
-                # Schedule deletion after 5 minutes (300 seconds)
-                asyncio.create_task(delete_after_delay(welcome_msg, 300))
-        except Exception as e:
-            # If GIF fails, send text only
-            print(f"Welcome GIF error: {e}")
-            try:
-                welcome_msg = await update.message.reply_text(text, parse_mode="Markdown")
                 # Schedule deletion after 5 minutes
                 asyncio.create_task(delete_after_delay(welcome_msg, 300))
+                
+        except Exception as e:
+            print(f"Welcome message error: {e}")
+            try:
+                # Fallback to text only
+                welcome_msg = await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"🎉 Welcome {name}!\n\n🐉 Welcome to 索拉拉 SUOLALA CTO\n💎 Stay strong. Stay patient."
+                )
+                asyncio.create_task(delete_after_delay(welcome_msg, 300))
             except Exception as e2:
-                print(f"Welcome text error: {e2}")
+                print(f"Even fallback welcome failed: {e2}")
 
 # ===== GM / GN TASK (FIXED) =====
 async def gm_gn_task(application):
@@ -653,7 +673,7 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
 # AUTOMATIC MESSAGES HANDLER
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, automatic_messages))
 
-# WELCOME
+# WELCOME - THIS MUST COME AFTER AUTOMATIC MESSAGES TO AVOID CONFLICT
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 
 # TRANSLATER
@@ -679,8 +699,9 @@ app.add_handler(CommandHandler("top", top_cmd))
 app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
-print(f"📊 Total commands: 16")
+print(f"📊 Total commands: 18")
 print(f"🤖 Automatic messages: Enabled for 15 keywords")
+print(f"👋 Welcome messages: Fixed and will send properly")
 print(f"🕒 Welcome messages: Auto-delete after 5 minutes")
 print(f"💬 Auto-responses: Delete after 1 minute")
 app.run_polling()
