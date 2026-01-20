@@ -69,7 +69,8 @@ async def delete_after_delay(message, delay=300):
     await asyncio.sleep(delay)
     try:
         await message.delete()
-    except:
+    except Exception as e:
+        print(f"Failed to delete message: {e}")
         pass  # Message might already be deleted or bot lacks permission
 
 # ===== SAVE CHAT (FIXED) =====
@@ -146,7 +147,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Commands:\n"
         "/price /chart /buy /memes /stickers\n"
         "/x /community /nft /contract /website /rules\n"
-        "/suolala /motivate /count /top /randomnft"
+        "/suolala /motivate /count /top /randomnft /translate"
     )
 
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -405,6 +406,9 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     for user in update.message.new_chat_members:
+        if user.is_bot:  # Skip if the new member is a bot
+            continue
+            
         name = f"[{user.first_name}](tg://user?id={user.id})"
         text = (
             f"🎉 Welcome {name}!\n\n"
@@ -413,6 +417,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
 
         try:
+            # Try to send animation first
             with open("welcome.gif", "rb") as gif:
                 welcome_msg = await update.message.reply_animation(
                     animation=gif,
@@ -423,9 +428,13 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 asyncio.create_task(delete_after_delay(welcome_msg, 300))
         except Exception as e:
             # If GIF fails, send text only
-            welcome_msg = await update.message.reply_text(text, parse_mode="Markdown")
-            # Schedule deletion after 5 minutes
-            asyncio.create_task(delete_after_delay(welcome_msg, 300))
+            print(f"Welcome GIF error: {e}")
+            try:
+                welcome_msg = await update.message.reply_text(text, parse_mode="Markdown")
+                # Schedule deletion after 5 minutes
+                asyncio.create_task(delete_after_delay(welcome_msg, 300))
+            except Exception as e2:
+                print(f"Welcome text error: {e2}")
 
 # ===== GM / GN TASK (FIXED) =====
 async def gm_gn_task(application):
@@ -438,16 +447,16 @@ async def gm_gn_task(application):
             for cid in KNOWN_CHATS:
                 try:
                     await application.bot.send_animation(cid, open("gm.gif", "rb"))
-                except:
-                    pass
+                except Exception as e:
+                    print(f"GM error in chat {cid}: {e}")
             LAST_GM_DATE = today
 
         if 23 <= now.hour < 24 and LAST_GN_DATE != today:
             for cid in KNOWN_CHATS:
                 try:
                     await application.bot.send_animation(cid, open("gn.gif", "rb"))
-                except:
-                    pass
+                except Exception as e:
+                    print(f"GN error in chat {cid}: {e}")
             LAST_GN_DATE = today
 
         await asyncio.sleep(60)
@@ -530,37 +539,110 @@ async def randomnft(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("RandomNFT ERROR:", e)
         await update.message.reply_text("⚠️ Failed to fetch NFT. Try again later.")
 
-# ===== AUTOMATIC MESSAGE =====
-async def automatic_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ===== AUTOMATIC MESSAGES =====
+async def automatic_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Automatically send messages based on keywords"""
     if not update.message or update.message.from_user.is_bot:
         return
     
+    # Don't respond to commands
+    if update.message.text and update.message.text.startswith('/'):
+        return
+    
+    # Don't respond in private chats
+    if update.effective_chat.type == "private":
+        return
+    
     text = update.message.text.lower() if update.message.text else ""
     
-    # Keywords to trigger automatic responses
-    keywords_responses = {
-        "suolala": ["🐉 SUOLALA to the moon! 🚀", "💎 Strong SUOLALA community! 🔥"],
-        "website": "🌐 Check our website: https://suolala.netlify.app/",
-        "contract": "📜 Contract: CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8",
-        "buy": "🛒 How to buy: /buy",
-        "price": "💰 Check price: /price",
-        "nft": "🎨 NFTs: /nft",
-        "motivation": "💪 Need motivation? /motivate",
+    # Define keywords and responses
+    keyword_responses = {
+        "suolala": [
+            "🐉 SUOLALA to the moon! 🚀",
+            "💎 Strong SUOLALA community! 🔥",
+            "🐲 SUOLALA 加油! 🇨🇳",
+            "🚀 SUOLALA is built by believers! 💪"
+        ],
+        "website": [
+            "🌐 Check our website: https://suolala.netlify.app/",
+            "🌐 Visit SUOLALA website: https://suolala.netlify.app/"
+        ],
+        "contract": [
+            "📜 Contract: CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8",
+            "📜 SUOLALA contract: CY1P83KnKwFYostvjQcoR2HJLyEJWRBRaVQmYyyD3cR8"
+        ],
+        "buy": [
+            "🛒 How to buy: /buy",
+            "💰 Want to buy SUOLALA? Use /buy command!"
+        ],
+        "price": [
+            "💰 Check price: /price",
+            "📈 Current price: /price"
+        ],
+        "chart": [
+            "📈 Check chart: /chart",
+            "📊 View chart: /chart"
+        ],
+        "nft": [
+            "🎨 NFTs: /nft",
+            "🖼 SUOLALA NFTs: /nft",
+            "🎲 Random NFT: /randomnft"
+        ],
+        "motivation": [
+            "💪 Need motivation? /motivate",
+            "🔥 Get motivated: /motivate"
+        ],
+        "community": [
+            "👥 Join community: /community",
+            "💬 Community link: /community"
+        ],
+        "memes": [
+            "😂 Memes: /memes",
+            "😆 Funny memes: /memes"
+        ],
+        "stickers": [
+            "🧧 Stickers: /stickers",
+            "🎭 Get stickers: /stickers"
+        ],
+        "x": [
+            "🐦 X/Twitter: /x",
+            "📱 Follow us on X: /x"
+        ],
+        "rules": [
+            "📌 Group rules: /rules",
+            "⚖️ Read rules: /rules"
+        ],
+        "solana": [
+            "🪐 Solana ecosystem! 🌟",
+            "⚡ Powered by Solana! ⚡"
+        ],
+        "moon": [
+            "🚀 To the moon! 🌕",
+            "🌙 Moon soon! 🚀"
+        ],
+        "gm": [
+            "🌞 Good morning SUOLALA fam! 💎",
+            "☀️ GM! Have a great day! 🐉"
+        ],
+        "gn": [
+            "🌙 Good night SUOLALA fam! 💤",
+            "✨ GN! Sweet dreams! 🐲"
+        ]
     }
     
     # Check for keywords and respond
-    for keyword, response in keywords_responses.items():
+    for keyword, responses in keyword_responses.items():
         if keyword in text:
-            if isinstance(response, list):
-                response_text = random.choice(response)
-            else:
-                response_text = response
+            response_text = random.choice(responses)
             
-            # Send the response and schedule deletion after 1 minute
-            sent_msg = await update.message.reply_text(response_text)
-            asyncio.create_task(delete_after_delay(sent_msg, 60))
-            break
+            try:
+                # Send the response
+                sent_msg = await update.message.reply_text(response_text)
+                # Schedule deletion after 60 seconds
+                asyncio.create_task(delete_after_delay(sent_msg, 60))
+            except Exception as e:
+                print(f"Automatic message error: {e}")
+            break  # Only respond to one keyword per message
 
 # ===== START BOT =====
 app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
@@ -568,8 +650,8 @@ app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
 # MESSAGE TRACKER MUST BE FIRST
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, track_messages))
 
-# AUTOMATIC MESSAGE HANDLER
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, automatic_message))
+# AUTOMATIC MESSAGES HANDLER
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, automatic_messages))
 
 # WELCOME
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
@@ -597,5 +679,8 @@ app.add_handler(CommandHandler("top", top_cmd))
 app.add_handler(CommandHandler("randomnft", randomnft))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
+print(f"📊 Total commands: 16")
+print(f"🤖 Automatic messages: Enabled for 15 keywords")
+print(f"🕒 Welcome messages: Auto-delete after 5 minutes")
+print(f"💬 Auto-responses: Delete after 1 minute")
 app.run_polling()
-
