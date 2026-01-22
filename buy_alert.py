@@ -25,8 +25,8 @@ SOLANA_RPC_WS = os.getenv("SOLANA_RPC_WS", "wss://api.mainnet-beta.solana.com")
 # Alert threshold in USD
 MIN_BUY_USD = 100.0
 
-# Auto-delete alert after this many seconds (60 seconds as required)
-ALERT_DELETE_DELAY = int(os.getenv("ALERT_DELETE_DELAY", "60"))
+# Auto-delete alert after 3 minutes (180 seconds)
+ALERT_DELETE_DELAY = int(os.getenv("ALERT_DELETE_DELAY", "180"))
 
 # Anti-spam: ignore repeated buys from same wallet within this window (seconds)
 WALLET_COOLDOWN_SECONDS = 60
