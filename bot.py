@@ -485,35 +485,100 @@ async def gm_gn_task(application):
         await asyncio.sleep(60)
 
 async def post_init(app):
-    app.create_task(gm_gn_task(app))
-    
-    # NEW BUY ALERT FEATURE
-    # Schedule delayed startup to ensure polling is stable first
-    app.create_task(delayed_buy_alert_startup(app))
+    # Schedule background tasks to start AFTER polling is running
+    # Using job_queue.run_once ensures tasks start in the running event loop
+    app.job_queue.run_once(start_background_tasks, when=5, data=app)
 
 
-async def delayed_buy_alert_startup(app):
-    """Start buy alert monitor after polling is stable"""
-    # Wait for polling to fully initialize
-    await asyncio.sleep(10)
+async def start_background_tasks(context):
+    """Start all background tasks after polling is stable"""
+    app = context.job.data
     
-    # Reload chat IDs from file in case new ones were added
+    # Start GM/GN task
+    asyncio.create_task(gm_gn_task(app))
+    print("[BACKGROUND] GM/GN task started")
+    
+    # Start buy alert monitor
+    await start_buy_alert_monitor_safe(app)
+
+
+async def start_buy_alert_monitor_safe(app):
+    """Start buy alert monitor only if chat IDs exist, prevent duplicate starts"""
+    # Reload chat IDs from file
     chat_ids = set()
     if os.path.exists(KNOWN_CHATS_FILE):
-        with open(KNOWN_CHATS_FILE, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    try:
-                        chat_ids.add(int(line))
-                    except ValueError:
-                        pass
+        try:
+            with open(KNOWN_CHATS_FILE, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            chat_ids.add(int(line))
+                        except ValueError:
+                            pass
+        except Exception as e:
+            print(f"[BUY ALERT] Error reading chat IDs: {e}")
     
     if chat_ids:
         await start_buy_alert_monitor(app.bot, list(chat_ids))
         print(f"[BUY ALERT] Monitor started for {len(chat_ids)} chat(s)")
     else:
         print("[BUY ALERT] No chat IDs found, monitor not started")
+
+
+# ===== DEXSCREENER API FOR PRICECHECK =====
+DEXSCREENER_API_URL = "https://api.dexscreener.com/latest/dex/pairs/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
+DEXSCREENER_CHART_URL = "https://dexscreener.com/solana/79Qaq5b1JfC8bFuXkAvXTR67fRPmMjMVNkEA3bb8bLzi"
+
+
+async def pricecheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Fetch and display live SUOLALA price data from DexScreener API"""
+    remember_chat(update)
+    
+    try:
+        response = requests.get(DEXSCREENER_API_URL, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        
+        pair = data.get("pair")
+        if not pair:
+            await update.message.reply_text("❌ Could not fetch price data. Try again later.")
+            return
+        
+        price_usd = float(pair.get("priceUsd", 0))
+        
+        # Market cap (FDV)
+        fdv = pair.get("fdv")
+        market_cap = float(fdv) if fdv else 0
+        
+        # Liquidity
+        liquidity = pair.get("liquidity", {})
+        liquidity_usd = float(liquidity.get("usd", 0)) if liquidity else 0
+        
+        # 24h changes
+        price_change_24h = pair.get("priceChange", {}).get("h24", "N/A")
+        
+        # Format message
+        message = (
+            "SUOLALA Price Check\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"Price: ${price_usd:.10f}\n"
+            f"Market Cap: ${market_cap:,.0f}\n"
+            f"Liquidity: ${liquidity_usd:,.0f}\n"
+            f"24h Change: {price_change_24h}%\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"Chart: {DEXSCREENER_CHART_URL}"
+        )
+        
+        await update.message.reply_text(message)
+        
+    except requests.exceptions.RequestException as e:
+        print(f"[PRICECHECK] API error: {e}")
+        await update.message.reply_text("❌ Failed to fetch price data. API may be temporarily unavailable.")
+    except Exception as e:
+        print(f"[PRICECHECK] Error: {e}")
+        await update.message.reply_text("❌ An error occurred. Try again later.")
+
 
 def get_floor_price():
     try:
@@ -728,9 +793,10 @@ app.add_handler(CommandHandler("motivate", motivate))
 app.add_handler(CommandHandler("count", count_cmd))
 app.add_handler(CommandHandler("top", top_cmd))
 app.add_handler(CommandHandler("randomnft", randomnft))
+app.add_handler(CommandHandler("pricecheck", pricecheck))
 
 print("✅ SUOLALA BOT RUNNING — ALL FEATURES ENABLED")
-print(f"📊 Total commands: 18")
+print(f"📊 Total commands: 19")
 print(f"🤖 Automatic messages: Enabled for 15 keywords")
 print(f"👋 Welcome messages: Fixed and will send properly")
 print(f"🕒 Welcome messages: Auto-delete after 5 minutes")
