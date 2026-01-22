@@ -35,9 +35,20 @@ LAST_GM_DATE = None
 LAST_GN_DATE = None
 USED_MOTIVATIONS = {}
 
+# Load chat IDs safely (handles empty lines)
 if os.path.exists(KNOWN_CHATS_FILE):
-    with open(KNOWN_CHATS_FILE, "r") as f:
-        KNOWN_CHATS = set(map(int, f.read().splitlines()))
+    try:
+        with open(KNOWN_CHATS_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        KNOWN_CHATS.add(int(line))
+                    except ValueError:
+                        pass
+        print(f"[STARTUP] Loaded {len(KNOWN_CHATS)} chat ID(s) from {KNOWN_CHATS_FILE}")
+    except Exception as e:
+        print(f"[STARTUP] Error loading chat IDs: {e}")
 
 # ===== DATABASE =====
 db = sqlite3.connect("weekly_stats.db", check_same_thread=False)
@@ -484,6 +495,10 @@ async def gm_gn_task(application):
 
         await asyncio.sleep(60)
 
+# Flag to prevent duplicate background task startup
+_background_started = False
+
+
 async def post_init(app):
     # Schedule background tasks using pure asyncio (no JobQueue required)
     # This task will wait for polling to stabilize, then start background work
@@ -491,7 +506,15 @@ async def post_init(app):
 
 
 async def delayed_background_startup(app):
-    """Start all background tasks after polling is stable"""
+    """Start all background tasks after polling is stable - runs only ONCE"""
+    global _background_started
+    
+    # Prevent duplicate startup
+    if _background_started:
+        print("[BACKGROUND] Already started, skipping duplicate call")
+        return
+    _background_started = True
+    
     # Wait for polling to fully initialize
     await asyncio.sleep(5)
     

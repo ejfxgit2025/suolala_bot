@@ -428,10 +428,12 @@ class BuyAlertMonitor:
         
         message = (
             f"🟢 SUOLALA BUY\n\n"
-            f"💰 ${buy.usd_value:,.2f} / {buy.sol_amount:.4f} SOL\n"
-            f"👤 {short_wallet}\n"
-            f"📈 ${token_data.price_usd:.10f}\n\n"
-            f"🚀 Don't miss the chance!"
+            f"💰 Buy Size: ${buy.usd_value:,.2f} USD / {buy.sol_amount:.4f} SOL\n"
+            f"👤 Buyer: {short_wallet}\n"
+            f"📈 Price: ${token_data.price_usd:.10f}\n"
+            f"🏦 MCap: ${token_data.market_cap:,.0f}\n"
+            f"💧 Liquidity: ${token_data.liquidity_usd:,.0f}\n\n"
+            f"Don't miss the chance 🚀"
         )
         
         # Send to all configured chat IDs
