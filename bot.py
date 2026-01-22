@@ -485,14 +485,15 @@ async def gm_gn_task(application):
         await asyncio.sleep(60)
 
 async def post_init(app):
-    # Schedule background tasks to start AFTER polling is running
-    # Using job_queue.run_once ensures tasks start in the running event loop
-    app.job_queue.run_once(start_background_tasks, when=5, data=app)
+    # Schedule background tasks using pure asyncio (no JobQueue required)
+    # This task will wait for polling to stabilize, then start background work
+    asyncio.create_task(delayed_background_startup(app))
 
 
-async def start_background_tasks(context):
+async def delayed_background_startup(app):
     """Start all background tasks after polling is stable"""
-    app = context.job.data
+    # Wait for polling to fully initialize
+    await asyncio.sleep(5)
     
     # Start GM/GN task
     asyncio.create_task(gm_gn_task(app))
