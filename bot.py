@@ -16,6 +16,9 @@ from telegram.ext import (
     filters,
 )
 
+# NEW BUY ALERT FEATURE
+from buy_alert import start_buy_alert_monitor
+
 MAGICEDEN_COLLECTION = "suolala_"
 MAGICEDEN_LIST_URL = "https://api-mainnet.magiceden.dev/v2/collections/{}/listings?offset=0&limit=100"
 
@@ -483,6 +486,13 @@ async def gm_gn_task(application):
 
 async def post_init(app):
     app.create_task(gm_gn_task(app))
+    
+    # NEW BUY ALERT FEATURE
+    # Start buy alert monitor for all known chats
+    # Uses KNOWN_CHATS which are populated from known_chats.txt
+    if KNOWN_CHATS:
+        await start_buy_alert_monitor(app.bot, list(KNOWN_CHATS))
+        print(f"[BUY ALERT] Monitor started for {len(KNOWN_CHATS)} chat(s)")
 
 def get_floor_price():
     try:
