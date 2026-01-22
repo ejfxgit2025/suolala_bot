@@ -500,6 +500,10 @@ _background_started = False
 
 
 async def post_init(app):
+    # Delete any existing webhook to prevent conflict errors
+    await app.bot.delete_webhook(drop_pending_updates=True)
+    print("[STARTUP] Webhook cleared, ready for polling")
+    
     # Schedule background tasks using pure asyncio (no JobQueue required)
     # This task will wait for polling to stabilize, then start background work
     asyncio.create_task(delayed_background_startup(app))
