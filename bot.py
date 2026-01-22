@@ -488,11 +488,32 @@ async def post_init(app):
     app.create_task(gm_gn_task(app))
     
     # NEW BUY ALERT FEATURE
-    # Start buy alert monitor for all known chats
-    # Uses KNOWN_CHATS which are populated from known_chats.txt
-    if KNOWN_CHATS:
-        await start_buy_alert_monitor(app.bot, list(KNOWN_CHATS))
-        print(f"[BUY ALERT] Monitor started for {len(KNOWN_CHATS)} chat(s)")
+    # Schedule delayed startup to ensure polling is stable first
+    app.create_task(delayed_buy_alert_startup(app))
+
+
+async def delayed_buy_alert_startup(app):
+    """Start buy alert monitor after polling is stable"""
+    # Wait for polling to fully initialize
+    await asyncio.sleep(10)
+    
+    # Reload chat IDs from file in case new ones were added
+    chat_ids = set()
+    if os.path.exists(KNOWN_CHATS_FILE):
+        with open(KNOWN_CHATS_FILE, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        chat_ids.add(int(line))
+                    except ValueError:
+                        pass
+    
+    if chat_ids:
+        await start_buy_alert_monitor(app.bot, list(chat_ids))
+        print(f"[BUY ALERT] Monitor started for {len(chat_ids)} chat(s)")
+    else:
+        print("[BUY ALERT] No chat IDs found, monitor not started")
 
 def get_floor_price():
     try:
