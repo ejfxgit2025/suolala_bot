@@ -25,8 +25,8 @@ SOLANA_RPC_WS = os.getenv("SOLANA_RPC_WS", "wss://api.mainnet-beta.solana.com")
 # Alert threshold in USD
 MIN_BUY_USD = 100.0
 
-# Auto-delete alert after this many seconds (10 minutes default)
-ALERT_DELETE_DELAY = int(os.getenv("ALERT_DELETE_DELAY", "600"))
+# Auto-delete alert after this many seconds (60 seconds to reduce spam)
+ALERT_DELETE_DELAY = int(os.getenv("ALERT_DELETE_DELAY", "60"))
 
 # Anti-spam: ignore repeated buys from same wallet within this window (seconds)
 WALLET_COOLDOWN_SECONDS = 60
@@ -423,22 +423,17 @@ class BuyAlertMonitor:
             print(f"[BUY ALERT] Skipping alert - no token data available")
             return
         
-        # Format the alert message
+        # Format the alert message (clean, no links, no web preview)
         short_wallet = f"{buy.buyer_wallet[:4]}...{buy.buyer_wallet[-4:]}"
         
         message = (
-            f"NEW BUY ALERT\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Buy Size: ${buy.usd_value:,.2f} USD\n"
-            f"SOL Spent: {buy.sol_amount:.4f} SOL\n"
-            f"Buyer: {short_wallet}\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Token Price: ${token_data.price_usd:.10f}\n"
-            f"Market Cap: ${token_data.market_cap:,.0f}\n"
-            f"Liquidity: ${token_data.liquidity_usd:,.0f}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Don't miss the chance — buy now!\n\n"
-            f"Chart: https://dexscreener.com/solana/{DEXSCREENER_PAIR}"
+            f"🟢 SUOLALA BUY\n\n"
+            f"💰 Buy: ${buy.usd_value:,.2f} USD / {buy.sol_amount:.4f} SOL\n"
+            f"👤 Buyer: {short_wallet}\n"
+            f"📈 Price: ${token_data.price_usd:.10f}\n"
+            f"🏦 MCap: ${token_data.market_cap:,.0f}\n"
+            f"💧 Liquidity: ${token_data.liquidity_usd:,.0f}\n\n"
+            f"Don't miss the chance 🚀"
         )
         
         # Send to all configured chat IDs
