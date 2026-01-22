@@ -25,8 +25,8 @@ SOLANA_RPC_WS = os.getenv("SOLANA_RPC_WS", "wss://api.mainnet-beta.solana.com")
 # Alert threshold in USD
 MIN_BUY_USD = 100.0
 
-# Auto-delete alert after this many seconds (3 minutes to reduce spam)
-ALERT_DELETE_DELAY = int(os.getenv("ALERT_DELETE_DELAY", "180"))
+# Auto-delete alert after this many seconds (60 seconds as required)
+ALERT_DELETE_DELAY = int(os.getenv("ALERT_DELETE_DELAY", "60"))
 
 # Anti-spam: ignore repeated buys from same wallet within this window (seconds)
 WALLET_COOLDOWN_SECONDS = 60
@@ -428,7 +428,7 @@ class BuyAlertMonitor:
         
         message = (
             f"🟢 SUOLALA BUY\n\n"
-            f"💰 Buy: ${buy.usd_value:,.2f} USD / {buy.sol_amount:.4f} SOL\n"
+            f"💰 Buy Size: ${buy.usd_value:,.2f} USD / {buy.sol_amount:.4f} SOL\n"
             f"👤 Buyer: {short_wallet}\n"
             f"📈 Price: ${token_data.price_usd:.10f}\n"
             f"🏦 MCap: ${token_data.market_cap:,.0f}\n"
