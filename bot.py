@@ -500,9 +500,13 @@ _background_started = False
 
 
 async def post_init(app):
-    # Delete any existing webhook to prevent conflict errors
+    # Delete any existing webhook and wait for old polling sessions to timeout
+    print("[STARTUP] Clearing webhook and waiting for old sessions to timeout...")
     await app.bot.delete_webhook(drop_pending_updates=True)
-    print("[STARTUP] Webhook cleared, ready for polling")
+    
+    # Wait for any existing polling session to timeout (Telegram timeout is ~30s)
+    await asyncio.sleep(35)
+    print("[STARTUP] Ready for polling")
     
     # Schedule background tasks using pure asyncio (no JobQueue required)
     # This task will wait for polling to stabilize, then start background work
