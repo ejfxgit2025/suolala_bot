@@ -559,16 +559,15 @@ async def pricecheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 24h changes
         price_change_24h = pair.get("priceChange", {}).get("h24", "N/A")
         
-        # Format message
+        # Format message (no links)
         message = (
-            "SUOLALA Price Check\n"
+            "📊 SUOLALA Price Check\n"
             "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"Price: ${price_usd:.10f}\n"
-            f"Market Cap: ${market_cap:,.0f}\n"
-            f"Liquidity: ${liquidity_usd:,.0f}\n"
-            f"24h Change: {price_change_24h}%\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Chart: {DEXSCREENER_CHART_URL}"
+            f"💵 Price: ${price_usd:.10f}\n"
+            f"🏦 Market Cap: ${market_cap:,.0f}\n"
+            f"💧 Liquidity: ${liquidity_usd:,.0f}\n"
+            f"📈 24h Change: {price_change_24h}%\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━"
         )
         
         await update.message.reply_text(message)
